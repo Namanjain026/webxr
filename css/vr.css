@@ -1,0 +1,42 @@
+/* VR Viewport Canvas & Barrel Overlay Styling */
+
+#vr-viewport {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #000;
+}
+
+#vr-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* Hidden Video Player Element */
+#hidden-video-player {
+    display: none;
+}
+
+/* Barrel Vignette Mask Overlay */
+#barrel-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 10;
+}
+
+.barrel-window {
+    width: 46vw;
+    height: 90vh;
+    border-radius: 40% / 50%;
+    box-shadow: 0 0 0 100vmax #000000;
+    pointer-events: none;
+}

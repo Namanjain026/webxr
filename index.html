@@ -2,93 +2,204 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>SBS VR Cinema Player</title>
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Stylesheet -->
-    <link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>VR Cinema Player — SBS & Custom VR Box Calibration</title>
 
-    <!-- Three.js Engine for Fast Native Stereo SBS Rendering -->
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/vr.css">
+    <link rel="stylesheet" href="css/controls.css">
+
+    <!-- Three.js 3D Rendering Engine -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-    <!-- HLS.js for Adaptive Streams -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-
-    <!-- App Logic -->
-    <script src="js/app.js"></script>
 </head>
 <body>
 
-    <!-- Native Video Element (Source for Stereo WebGL Texture) -->
-    <video id="cinema-video" crossorigin="anonymous" playsinline webkit-playsinline preload="auto" loop style="display:none;"></video>
+    <!-- VR Viewport & Barrel Container -->
+    <div id="vr-viewport">
+        <!-- 3D WebGL Stereo Canvas -->
+        <canvas id="vr-canvas"></canvas>
 
-    <!-- Fullscreen WebGL Canvas for Stereo SBS Rendering -->
-    <canvas id="webgl-canvas"></canvas>
-
-    <!-- Dark Barrel Vignette Overlay Frame (Matches Screenshot 1:1) -->
-    <div id="barrel-overlay">
-        <div class="barrel-window left-window"></div>
-        <div class="barrel-window right-window"></div>
-    </div>
-
-    <!-- Top-Right Menu Icon Button (Matches Screenshot 1:1) -->
-    <button id="menu-toggle-btn" class="menu-btn-icon" title="Toggle Controls Menu">
-        <span>☰</span>
-    </button>
-
-    <!-- Floating Control Panel Overlay (Toggled via Menu Icon) -->
-    <div id="control-panel" class="control-panel hidden">
-        <div class="panel-header">
-            <h2>🎬 VR Cinema Controls</h2>
-            <button id="close-panel-btn" class="close-btn">✕</button>
+        <!-- Dark Barrel Vignette Windows Overlay -->
+        <div id="barrel-overlay">
+            <div class="barrel-window"></div>
+            <div class="barrel-window"></div>
         </div>
 
-        <div class="panel-body">
-            <!-- File & Stream Inputs -->
-            <div class="input-section">
-                <label class="btn-primary file-label">
-                    📂 Select Video File
-                    <input type="file" id="video-file-input" accept="video/*, .mp4, .mkv, .avi, .mov, .webm, .m4v, .3gp, .ts, .flv, .ogv, .wmv, .m3u8" style="display:none;">
-                </label>
-                <button id="btn-stream-url" class="btn-secondary">🔗 Stream URL</button>
+        <!-- Floating Menu Toggle Button (☰) -->
+        <button id="menu-toggle-btn" title="Toggle Controls">☰</button>
+
+        <!-- Glassmorphic Floating Control HUD -->
+        <div id="control-hud">
+            <div class="hud-header">
+                <h2>🎬 VR Cinema</h2>
+                <div class="mode-toggle">
+                    <button id="mode-2d-btn" class="btn-mode active">2D</button>
+                    <button id="mode-sbs-btn" class="btn-mode">SBS 3D</button>
+                </div>
             </div>
 
-            <!-- Time Scrub Bar -->
-            <div class="scrub-section">
-                <span id="time-current" class="time-stamp">0:00</span>
-                <input type="range" id="scrub-bar" class="scrub-bar" value="0" min="0" max="100" step="0.1">
-                <span id="time-duration" class="time-stamp">0:00</span>
+            <!-- Media Sources -->
+            <div class="hud-section">
+                <div class="hud-section-title">Media Input</div>
+                <div class="source-grid">
+                    <label class="btn-input-file">
+                        📂 Local Video
+                        <input type="file" id="local-video-input" accept="video/mp4,video/mkv,video/webm,video/*">
+                    </label>
+                    <label class="btn-input-file">
+                        🖼️ Local Image
+                        <input type="file" id="local-image-input" accept="image/jpeg,image/png,image/webp,image/*">
+                    </label>
+                </div>
+                <div class="youtube-box">
+                    <input type="text" id="youtube-url-input" placeholder="Paste YouTube URL...">
+                    <button id="youtube-load-btn" class="btn-action">Load</button>
+                </div>
             </div>
 
             <!-- Playback Controls -->
-            <div class="controls-grid">
-                <button id="btn-play" class="btn-action">▶ Play</button>
-                <button id="btn-recenter" class="btn-action">🔄 Recenter View</button>
-                <button id="btn-gyro-perm" class="btn-action">📱 Enable Gyro Head Track</button>
+            <div class="hud-section">
+                <div class="hud-section-title">Playback</div>
+                <div class="playback-bar">
+                    <button id="play-pause-btn" class="btn-icon" title="Play / Pause">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    </button>
+                    <div class="timeline-container">
+                        <input type="range" id="seek-slider" min="0" max="100" value="0" step="0.1">
+                        <div class="time-display">
+                            <span id="current-time">00:00</span>
+                            <span id="duration-time">00:00</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:12px;">
+                    <span style="font-size:12px; color:var(--text-muted);">Volume</span>
+                    <input type="range" id="volume-slider" min="0" max="100" value="100">
+                    <button id="fullscreen-btn" class="btn-icon" title="Fullscreen" style="width:32px; height:32px;">⛶</button>
+                </div>
             </div>
 
-            <!-- Volume & Settings -->
-            <div class="settings-row">
-                <div class="volume-box">
-                    <span>🔊 Volume</span>
-                    <input type="range" id="volume-slider" class="volume-slider" value="100" min="0" max="100">
+            <!-- Head Tracking Sensors -->
+            <div class="hud-section">
+                <div class="hud-section-title">Sensors & Head Tracking</div>
+                <div style="display:flex; gap:8px;">
+                    <button id="recenter-gyro-btn" class="btn-input-file" style="flex:1;">🔄 Recenter View</button>
+                    <button id="enable-gyro-btn" class="btn-input-file" style="flex:1;">📱 Enable Gyro</button>
                 </div>
-                <div class="mode-box">
-                    <span>Format:</span>
-                    <select id="select-video-format" class="select-input">
-                        <option value="2d" selected>Standard 2D Video</option>
-                        <option value="sbs_3d">3D Side-by-Side Video</option>
-                        <option value="ou_3d">3D Over-Under Video</option>
-                    </select>
-                </div>
+            </div>
+
+            <!-- VR Calibration -->
+            <div class="hud-section" style="margin-bottom:0;">
+                <button id="open-calibration-btn" class="btn-action" style="width:100%; padding:12px; background:rgba(0,240,255,0.15); color:var(--accent-blue); border:1px solid var(--accent-blue);">
+                    ⚙️ VR Box Lens Calibration
+                </button>
             </div>
         </div>
     </div>
 
+    <!-- VR Box Lens & Viewport Calibration Modal -->
+    <div id="calibration-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>⚙️ VR Box Lens Calibration</h3>
+                <button id="close-calibration-btn" class="close-btn">&times;</button>
+            </div>
+
+            <!-- Lens Masking -->
+            <div class="hud-section-title">Eye Viewport & Mask Width</div>
+            <div class="slider-group">
+                <div class="slider-row">
+                    <label for="cal-left-mask">Left Mask Width</label>
+                    <input type="range" id="cal-left-mask" min="0.5" max="1.5" step="0.05" value="1.0">
+                    <span id="cal-left-mask-val" class="val">1.0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cal-right-mask">Right Mask Width</label>
+                    <input type="range" id="cal-right-mask" min="0.5" max="1.5" step="0.05" value="1.0">
+                    <span id="cal-right-mask-val" class="val">1.0</span>
+                </div>
+            </div>
+
+            <!-- Viewport Alignment -->
+            <div class="hud-section-title">Eye Separation & Alignment</div>
+            <div class="slider-group">
+                <div class="slider-row">
+                    <label for="cal-left-x">Left X Offset (px)</label>
+                    <input type="range" id="cal-left-x" min="-100" max="100" step="1" value="0">
+                    <span id="cal-left-x-val" class="val">0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cal-right-x">Right X Offset (px)</label>
+                    <input type="range" id="cal-right-x" min="-100" max="100" step="1" value="0">
+                    <span id="cal-right-x-val" class="val">0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cal-y-offset">Vertical Y Offset (px)</label>
+                    <input type="range" id="cal-y-offset" min="-100" max="100" step="1" value="0">
+                    <span id="cal-y-offset-val" class="val">0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cal-center-gap">Center Gap (px)</label>
+                    <input type="range" id="cal-center-gap" min="0" max="150" step="2" value="0">
+                    <span id="cal-center-gap-val" class="val">0</span>
+                </div>
+            </div>
+
+            <!-- Screen Geometry (Zoom & Distance) -->
+            <div class="hud-section-title">3D Cinema Screen Scale & Distance</div>
+            <div class="slider-group">
+                <div class="slider-row">
+                    <label for="cal-screen-scale">Screen Scale (Zoom)</label>
+                    <input type="range" id="cal-screen-scale" min="0.4" max="2.5" step="0.05" value="1.0">
+                    <span id="cal-screen-scale-val" class="val">1.0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cal-screen-distance">Screen Distance</label>
+                    <input type="range" id="cal-screen-distance" min="1.5" max="12.0" step="0.2" value="4.0">
+                    <span id="cal-screen-distance-val" class="val">4.0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cal-screen-offset-x">Screen X Shift</label>
+                    <input type="range" id="cal-screen-offset-x" min="-3.0" max="3.0" step="0.1" value="0">
+                    <span id="cal-screen-offset-x-val" class="val">0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cal-screen-offset-y">Screen Y Shift</label>
+                    <input type="range" id="cal-screen-offset-y" min="-3.0" max="3.0" step="0.1" value="0">
+                    <span id="cal-screen-offset-y-val" class="val">0</span>
+                </div>
+                <div class="slider-row">
+                    <label for="cal-gyro-sensitivity">Gyro Sensitivity</label>
+                    <input type="range" id="cal-gyro-sensitivity" min="0.2" max="2.5" step="0.1" value="1.0">
+                    <span id="cal-gyro-sensitivity-val" class="val">1.0</span>
+                </div>
+            </div>
+
+            <!-- Calibration Pattern -->
+            <div class="slider-row" style="margin-bottom:12px;">
+                <label for="cal-show-grid" style="width:auto;">🎯 Show Test Grid & Crosshairs</label>
+                <input type="checkbox" id="cal-show-grid" style="width:20px; height:20px;">
+            </div>
+
+            <div class="modal-actions">
+                <button id="reset-calibration-btn" class="btn-secondary">Reset Defaults</button>
+                <button id="save-calibration-btn" class="btn-action">Save Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden HTML5 Video Element for Texture Source -->
+    <video id="hidden-video-player" playsinline crossorigin="anonymous"></video>
+
+    <!-- Application Module Scripts -->
+    <script src="js/settings.js"></script>
+    <script src="js/gyro.js"></script>
+    <script src="js/local-media.js"></script>
+    <script src="js/youtube.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/vr.js"></script>
+    <script src="js/calibration.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
