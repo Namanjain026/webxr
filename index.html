@@ -2,161 +2,92 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>VR Cinema - WebXR & Google Cardboard 3D Theater</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SBS VR Cinema Player</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     
-    <!-- Glassmorphic HUD Stylesheet -->
+    <!-- Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
 
-    <!-- A-Frame 1.6.0 WebXR & Cardboard Engine -->
-    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <!-- Three.js Engine for Fast Native Stereo SBS Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-    <!-- HLS.js for Streaming -->
+    <!-- HLS.js for Adaptive Streams -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
-    <!-- Custom Stereo Shader & App Scripts -->
-    <script src="js/stereo-shader.js"></script>
+    <!-- App Logic -->
     <script src="js/app.js"></script>
 </head>
 <body>
 
-    <!-- A-Frame 3D Scene Container -->
-    <a-scene id="cinema-scene" embedded vr-mode-ui="enabled: true" loading-screen="enabled: false" renderer="antialias: true; colorManagement: true;">
-        
-        <!-- Asset Management System -->
-        <a-assets timeout="10000">
-            <!-- Native HTML5 Video Asset -->
-            <video id="cinema-video" crossorigin="anonymous" playsinline webkit-playsinline preload="auto" src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>
-        </a-assets>
+    <!-- Native Video Element (Source for Stereo WebGL Texture) -->
+    <video id="cinema-video" crossorigin="anonymous" playsinline webkit-playsinline preload="auto" loop style="display:none;"></video>
 
-        <!-- Lighting Setup -->
-        <a-light id="ambient-light" type="ambient" color="#1a1c23" intensity="0.5"></a-light>
-        <a-light type="spot" color="#ffffff" intensity="0.6" position="0 7 -2" target="#rig" angle="60" penumbra="0.5"></a-light>
-        <a-light id="screen-glow-light" type="point" color="#00f0ff" intensity="1.0" distance="18" position="0 3.2 -5"></a-light>
+    <!-- Fullscreen WebGL Canvas for Stereo SBS Rendering -->
+    <canvas id="webgl-canvas"></canvas>
 
-        <!-- Camera Rig with Head Movement / Gyro Look Controls -->
-        <a-entity id="rig" position="0 1.6 0">
-            <a-camera id="vr-camera" look-controls="touchEnabled: true; magicWindowTrackingEnabled: true" wasd-controls="enabled: false">
-                <!-- Fuse Cursor for Google Cardboard Gaze Selection -->
-                <a-entity id="gaze-cursor" 
-                          cursor="fuse: true; fuseTimeout: 1500" 
-                          position="0 0 -1"
-                          geometry="primitive: ring; radiusInner: 0.015; radiusOuter: 0.025" 
-                          material="color: #ffffff; shader: flat; opacity: 0.8" 
-                          raycaster="objects: .raycastable">
-                </a-entity>
-            </a-camera>
+    <!-- Dark Barrel Vignette Overlay Frame (Matches Screenshot 1:1) -->
+    <div id="barrel-overlay">
+        <div class="barrel-window left-window"></div>
+        <div class="barrel-window right-window"></div>
+    </div>
 
-            <!-- WebXR Laser Controllers -->
-            <a-entity laser-controls="hand: right" raycaster="objects: .raycastable; far: 20"></a-entity>
-            <a-entity laser-controls="hand: left" raycaster="objects: .raycastable; far: 20"></a-entity>
-        </a-entity>
+    <!-- Top-Right Menu Icon Button (Matches Screenshot 1:1) -->
+    <button id="menu-toggle-btn" class="menu-btn-icon" title="Toggle Controls Menu">
+        <span>☰</span>
+    </button>
 
-        <!-- Curved Cinema Screen Entity -->
-        <a-entity id="screen-container" position="0 3.2 -8">
-            <a-curvedvideo id="cinema-screen" 
-                            class="raycastable"
-                            src="#cinema-video" 
-                            radius="10" 
-                            theta-length="100" 
-                            height="5.8" 
-                            rotation="0 130 0" 
-                            scale="1 1 1"
-                            stereo-video="mode: mono">
-            </a-curvedvideo>
-            
-            <!-- Curved Screen Outer Frame Bezel -->
-            <a-curvedvideo id="screen-bezel" 
-                            radius="10.05" 
-                            theta-length="102" 
-                            height="6.0" 
-                            rotation="0 129 0" 
-                            material="color: #08090c; roughness: 0.8; metalness: 0.2">
-            </a-curvedvideo>
-        </a-entity>
+    <!-- Floating Control Panel Overlay (Toggled via Menu Icon) -->
+    <div id="control-panel" class="control-panel hidden">
+        <div class="panel-header">
+            <h2>🎬 VR Cinema Controls</h2>
+            <button id="close-panel-btn" class="close-btn">✕</button>
+        </div>
 
-        <!-- Auditorium Environment -->
-        <a-entity id="env-grand-velvet" visible="true">
-            <a-plane position="0 0 -2" rotation="-90 0 0" width="24" height="24" material="color: #12141d; roughness: 0.6"></a-plane>
-            <a-plane position="0 8 -2" rotation="90 0 0" width="24" height="24" material="color: #1a0f0a; roughness: 0.9"></a-plane>
-            <a-plane position="-12 4 -2" rotation="0 90 0" width="24" height="10" material="color: #2b170c; roughness: 0.8"></a-plane>
-            <a-plane position="12 4 -2" rotation="0 -90 0" width="24" height="10" material="color: #2b170c; roughness: 0.8"></a-plane>
-
-            <!-- Seating Rows -->
-            <a-entity id="seat-center-row" position="0 0.5 0">
-                <a-box position="-1.2 0 0" width="0.8" height="0.9" depth="0.8" material="color: #800c24; roughness: 0.7"></a-box>
-                <a-box position="0 0 0" width="0.8" height="0.9" depth="0.8" material="color: #a00c24; roughness: 0.7"></a-box>
-                <a-box position="1.2 0 0" width="0.8" height="0.9" depth="0.8" material="color: #800c24; roughness: 0.7"></a-box>
-            </a-entity>
-        </a-entity>
-
-    </a-scene>
-
-    <!-- 2D DESKTOP / MOBILE GLASSMORPHIC HUD -->
-    <div id="desktop-hud">
-        
-        <header class="hud-header hud-interactive">
-            <div class="brand">
-                <span class="brand-icon">🎬</span>
-                <h1>VR CINEMA 3D</h1>
+        <div class="panel-body">
+            <!-- File & Stream Inputs -->
+            <div class="input-section">
+                <label class="btn-primary file-label">
+                    📂 Select Video File
+                    <input type="file" id="video-file-input" accept="video/*, .mp4, .mkv, .avi, .mov, .webm, .m4v, .3gp, .ts, .flv, .ogv, .wmv, .m3u8" style="display:none;">
+                </label>
+                <button id="btn-stream-url" class="btn-secondary">🔗 Stream URL</button>
             </div>
 
-            <div class="header-actions">
-                <!-- Enter VR Button (Triggers A-Frame Side-by-Side Dark Circle Headset View) -->
-                <button id="btn-enter-vr" class="btn-primary" onclick="document.querySelector('a-scene').enterVR()">
-                    🥽 ENTER VR (SBS BARRELS)
-                </button>
-            </div>
-        </header>
-
-        <footer class="hud-footer hud-interactive">
-            <!-- Progress / Time Scrub Bar -->
-            <div class="scrub-container">
+            <!-- Time Scrub Bar -->
+            <div class="scrub-section">
                 <span id="time-current" class="time-stamp">0:00</span>
                 <input type="range" id="scrub-bar" class="scrub-bar" value="0" min="0" max="100" step="0.1">
                 <span id="time-duration" class="time-stamp">0:00</span>
             </div>
 
-            <!-- Controls Row -->
-            <div class="controls-row">
-                <div class="left-controls">
-                    <!-- Play / Pause -->
-                    <button id="btn-play" class="btn-primary">▶ Play</button>
+            <!-- Playback Controls -->
+            <div class="controls-grid">
+                <button id="btn-play" class="btn-action">▶ Play</button>
+                <button id="btn-recenter" class="btn-action">🔄 Recenter View</button>
+                <button id="btn-gyro-perm" class="btn-action">📱 Enable Gyro Head Track</button>
+            </div>
 
-                    <!-- Volume Control -->
-                    <div class="volume-group">
-                        <span>🔊</span>
-                        <input type="range" id="volume-slider" class="volume-slider" value="100" min="0" max="100">
-                    </div>
+            <!-- Volume & Settings -->
+            <div class="settings-row">
+                <div class="volume-box">
+                    <span>🔊 Volume</span>
+                    <input type="range" id="volume-slider" class="volume-slider" value="100" min="0" max="100">
                 </div>
-
-                <div class="right-controls">
-                    <!-- File Picker Input -->
-                    <label class="btn-secondary" style="cursor: pointer;" title="Open local video file">
-                        📂 Open Video File
-                        <input type="file" id="video-file-input" accept="video/*, .mp4, .mkv, .avi, .mov, .webm, .m4v, .3gp, .ts, .flv, .ogv, .wmv, .m3u8, .mpd" style="display: none;">
-                    </label>
-
-                    <!-- Stream URL Input -->
-                    <button id="btn-url-stream" class="btn-secondary" title="Play Video URL or Stream">
-                        🔗 Stream URL
-                    </button>
-
-                    <!-- 3D Stereo Video Mode (Mono, Side-by-Side 3D, Over-Under 3D) -->
-                    <select id="select-stereo-mode" class="control-select">
-                        <option value="mono" selected>2D Standard</option>
-                        <option value="sbs">3D Side-by-Side (SBS Video)</option>
-                        <option value="ou">3D Over-Under (OU Video)</option>
+                <div class="mode-box">
+                    <span>Format:</span>
+                    <select id="select-video-format" class="select-input">
+                        <option value="2d" selected>Standard 2D Video</option>
+                        <option value="sbs_3d">3D Side-by-Side Video</option>
+                        <option value="ou_3d">3D Over-Under Video</option>
                     </select>
                 </div>
             </div>
-        </footer>
-
+        </div>
     </div>
 
 </body>
