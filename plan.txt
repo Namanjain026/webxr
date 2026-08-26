@@ -1,0 +1,60 @@
+Phase 1: Project Setup & Core Scaffold
+
+Directory Structure:
+
+Plaintext
+
+
+vr-cinema/
+├── index.html          # Main WebXR A-Frame scene
+├── css/
+│   └── style.css       # 2D desktop HUD overlay styling
+├── js/
+│   ├── app.js          # Video picker, playback controller, UI sync
+│   └── vr-controls.js  # In-headset laser pointer & raycaster logic
+└── assets/
+    ├── models/         # 3D glTF/GLB theater environments (optional)
+    └── textures/       # Carpet, wall, and seat materials
+Local Web Server:
+
+Use Python (python -m http.server 8000) or Node (npx serve .) to serve assets over your local network for WebXR device access.
+
+Phase 2: Virtual Environment & Screen Geometry
+
+Screen Setup: Implement <a-curvedvideo> or a curved <a-plane> geometry mapped to a <video> texture for an authentic cinema curve.
+
+Lighting Configuration:
+
+Ambient light for baseline visibility (low intensity: ~0.3–0.5).
+
+Directional spot directed down from the ceiling toward the seating row.
+
+Theater Architecture: Build basic geometric boundaries (walls, floor, ceiling) or load an optimized .glb cinema auditorium model into the <a-scene>.
+
+Phase 3: Media Pipeline & Playback Engine
+
+HTML5 Video Engine: Connect local file loading using URL.createObjectURL(file) to bypass server upload overhead.
+
+Format Support:
+
+Standard 2D Flat: Render direct mono texture to the curved screen.
+
+Over-Under (Top-Bottom) / Side-by-Side (SBS): Add shader components to map Left Eye / Right Eye halves to corresponding WebXR camera views when using stereoscopic 3D files.
+
+Desktop Fallback UI: Build a clean HUD with Play/Pause, Seek bar, Volume slider, and Screen Size presets (IMAX / Standard / Intimate).
+
+Phase 4: In-Headset VR Controls (WebXR)
+
+Controller Entities: Add <a-entity laser-controls="hand: right"> and raycasting against interactive UI planes.
+
+Floating In-VR Menu: Create a toggleable dashboard (wrist-anchored or pinned floating HUD) to pause, scrub, and change theater themes directly inside the headset.
+
+Recenter / Seating Position: Provide preset camera positions (Front Row, Center Seat, Balcony/Back Row).
+
+Phase 5: Audio & Visual Polish
+
+Dynamic Screen Glow: Sample video canvas pixels periodically to dynamically change the color/intensity of a spot light directed at the room.
+
+Spatial Audio: Attach positional audio to the screen entity for directional realism.
+
+Network & Security Check: Verify local IP binding (http://<LAN_IP>:8000) and configure self-signed HTTPS if testing on modern headsets requiring secure WebXR origins.
