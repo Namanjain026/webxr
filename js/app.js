@@ -12,6 +12,7 @@ window.CinemaApp = {
     pannerNode: null,
     screenGlowLight: null,
     hlsInstance: null,
+    videoTexture: null,
     isPlaying: false,
     useDemoGenerator: true,
     animFrameId: null,
@@ -259,6 +260,44 @@ window.CinemaApp = {
         if (vrPlayText) vrPlayText.setAttribute('value', this.isPlaying ? 'PAUSE' : 'PLAY');
     },
 
+    startVideoRenderLoop: function () {
+        if (this.videoRenderLoopActive) return;
+        this.videoRenderLoopActive = true;
+
+        const self = this;
+        function updateVideoFrame() {
+            if (self.useDemoGenerator) {
+                self.videoRenderLoopActive = false;
+                return;
+            }
+
+            const screenEl = document.getElementById('cinema-screen');
+            if (screenEl && screenEl.object3DMap.mesh) {
+                const mesh = screenEl.object3DMap.mesh;
+
+                if (mesh.material) {
+                    if (!mesh.material.map || mesh.material.map.image !== self.video) {
+                        if (typeof THREE !== 'undefined') {
+                            self.videoTexture = new THREE.VideoTexture(self.video);
+                            self.videoTexture.colorSpace = THREE.SRGBColorSpace;
+                            self.videoTexture.minFilter = THREE.LinearFilter;
+                            self.videoTexture.magFilter = THREE.LinearFilter;
+                            mesh.material.map = self.videoTexture;
+                        }
+                    }
+
+                    if (mesh.material.map) {
+                        mesh.material.map.needsUpdate = true;
+                    }
+                    mesh.material.needsUpdate = true;
+                }
+            }
+
+            requestAnimationFrame(updateVideoFrame);
+        }
+        requestAnimationFrame(updateVideoFrame);
+    },
+
     loadLocalVideoFile: function (file) {
         if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
         this.useDemoGenerator = false;
@@ -271,6 +310,9 @@ window.CinemaApp = {
         const fileName = file.name.toLowerCase();
         const objectUrl = URL.createObjectURL(file);
 
+        // Unmute video on user action
+        this.video.muted = false;
+
         if (fileName.endsWith('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
             this.hlsInstance = new Hls();
             this.hlsInstance.loadSource(objectUrl);
@@ -279,6 +321,7 @@ window.CinemaApp = {
                 this.video.play();
                 this.isPlaying = true;
                 document.getElementById('btn-play').innerText = '⏸ Pause';
+                this.startVideoRenderLoop();
             });
         } else {
             this.video.src = objectUrl;
@@ -286,16 +329,25 @@ window.CinemaApp = {
             this.video.play().then(() => {
                 this.isPlaying = true;
                 document.getElementById('btn-play').innerText = '⏸ Pause';
+                this.startVideoRenderLoop();
             }).catch(err => {
                 console.log('Video play trigger:', err);
-                this.isPlaying = false;
-                document.getElementById('btn-play').innerText = '▶ Play';
+                // Retry muted if browser blocked un-muted autoplay
+                this.video.muted = true;
+                this.video.play().then(() => {
+                    this.isPlaying = true;
+                    document.getElementById('btn-play').innerText = '⏸ Pause';
+                    this.startVideoRenderLoop();
+                }).catch(e => {
+                    this.isPlaying = false;
+                    document.getElementById('btn-play').innerText = '▶ Play';
+                });
             });
         }
         
-        // Re-point screen texture to HTML5 video element
         const screenEl = document.getElementById('cinema-screen');
         if (screenEl) screenEl.setAttribute('src', '#cinema-video');
+        this.startVideoRenderLoop();
     },
 
     loadVideoUrl: function (urlStr) {
@@ -310,6 +362,8 @@ window.CinemaApp = {
             this.hlsInstance = null;
         }
 
+        this.video.muted = false;
+
         if (urlStr.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
             this.hlsInstance = new Hls();
             this.hlsInstance.loadSource(urlStr);
@@ -318,6 +372,7 @@ window.CinemaApp = {
                 this.video.play();
                 this.isPlaying = true;
                 document.getElementById('btn-play').innerText = '⏸ Pause';
+                this.startVideoRenderLoop();
             });
         } else {
             this.video.src = urlStr;
@@ -325,15 +380,24 @@ window.CinemaApp = {
             this.video.play().then(() => {
                 this.isPlaying = true;
                 document.getElementById('btn-play').innerText = '⏸ Pause';
+                this.startVideoRenderLoop();
             }).catch(err => {
                 console.log('Video URL play trigger:', err);
-                this.isPlaying = false;
-                document.getElementById('btn-play').innerText = '▶ Play';
+                this.video.muted = true;
+                this.video.play().then(() => {
+                    this.isPlaying = true;
+                    document.getElementById('btn-play').innerText = '⏸ Pause';
+                    this.startVideoRenderLoop();
+                }).catch(e => {
+                    this.isPlaying = false;
+                    document.getElementById('btn-play').innerText = '▶ Play';
+                });
             });
         }
 
         const screenEl = document.getElementById('cinema-screen');
         if (screenEl) screenEl.setAttribute('src', '#cinema-video');
+        this.startVideoRenderLoop();
     },
 
     seekDelta: function (seconds) {
