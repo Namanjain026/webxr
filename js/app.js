@@ -13,9 +13,12 @@ window.CinemaApp = {
     screenGlowLight: null,
     hlsInstance: null,
     videoTexture: null,
+    demoTexture: null,
     isPlaying: false,
     useDemoGenerator: true,
     animFrameId: null,
+    demoAngle: 0,
+    ball: { x: 640, y: 360, vx: 5, vy: 4, r: 40, color: '#00f0ff' },
 
     init: function () {
         this.video = document.getElementById('cinema-video');
@@ -26,6 +29,28 @@ window.CinemaApp = {
         this.setupDynamicScreenGlow();
         this.setupSpatialAudio();
         this.applyTheme('grand-velvet');
+
+        // Global gesture listener to resume AudioContext on user interaction
+        const unlockAudio = () => {
+            this.resumeAudioContext();
+        };
+        document.addEventListener('click', unlockAudio);
+        document.addEventListener('touchstart', unlockAudio);
+
+        // Start unified render loop
+        this.startRenderLoop();
+    },
+
+    resumeAudioContext: function () {
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume().then(() => {
+                console.log('[Spatial Audio] Context un-suspended successfully.');
+            }).catch(e => console.warn('[Spatial Audio] Resume error:', e));
+        }
+    },
+
+    getThreeLib: function () {
+        return window.THREE || (typeof AFRAME !== 'undefined' ? AFRAME.THREE : null);
     },
 
     setupDemoCanvasGenerator: function () {
@@ -33,91 +58,139 @@ window.CinemaApp = {
         this.canvasGen.width = 1280;
         this.canvasGen.height = 720;
         this.canvasCtx = this.canvasGen.getContext('2d');
-
-        // Bouncing DVD ball physics
         this.ball = { x: 640, y: 360, vx: 5, vy: 4, r: 40, color: '#00f0ff' };
     },
 
-    startDemoGenerator: function () {
+    renderDemoFrame: function () {
+        const ctx = this.canvasCtx;
+        const w = this.canvasGen.width;
+        const h = this.canvasGen.height;
+
+        // Background Gradient
+        this.demoAngle += 0.01;
+        const r1 = Math.sin(this.demoAngle) * 50 + 60;
+        const g1 = Math.cos(this.demoAngle * 0.8) * 50 + 60;
+        const b1 = Math.sin(this.demoAngle * 1.2) * 80 + 120;
+        ctx.fillStyle = `rgb(${r1}, ${g1}, ${b1})`;
+        ctx.fillRect(0, 0, w, h);
+
+        // Animated grid lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 2;
+        const gridOffset = (this.demoAngle * 100) % 80;
+        for (let x = gridOffset; x < w; x += 80) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        }
+        for (let y = gridOffset; y < h; y += 80) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
+
+        // Bouncing ball
+        this.ball.x += this.ball.vx;
+        this.ball.y += this.ball.vy;
+        if (this.ball.x - this.ball.r < 0 || this.ball.x + this.ball.r > w) {
+            this.ball.vx *= -1;
+            this.ball.color = `hsl(${Math.random() * 360}, 100%, 60%)`;
+        }
+        if (this.ball.y - this.ball.r < 0 || this.ball.y + this.ball.r > h) {
+            this.ball.vy *= -1;
+            this.ball.color = `hsl(${Math.random() * 360}, 100%, 60%)`;
+        }
+
+        ctx.shadowColor = this.ball.color;
+        ctx.shadowBlur = 30;
+        ctx.fillStyle = this.ball.color;
+        ctx.beginPath();
+        ctx.arc(this.ball.x, this.ball.y, this.ball.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Center Title Text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 56px Outfit, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('VR CINEMA 3D ENGINE', w / 2, h / 2 - 20);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '24px Outfit, sans-serif';
+        ctx.fillText('Load your local video file or enjoy the live demo stream', w / 2, h / 2 + 30);
+
+        // Clock Timestamp
+        const now = new Date();
+        const timeStr = now.toTimeString().split(' ')[0] + '.' + Math.floor(now.getMilliseconds() / 100);
+        ctx.fillStyle = '#ffb703';
+        ctx.font = 'bold 36px monospace';
+        ctx.fillText(timeStr, w / 2, h / 2 + 90);
+    },
+
+    attachScreenTexture: function () {
+        const THREE_LIB = this.getThreeLib();
+        const screenEl = document.getElementById('cinema-screen');
+        if (!screenEl || !screenEl.object3DMap || !screenEl.object3DMap.mesh) return;
+
+        const mesh = screenEl.object3DMap.mesh;
+        if (!mesh.material) return;
+
+        if (this.useDemoGenerator) {
+            if (!this.demoTexture && THREE_LIB) {
+                this.demoTexture = new THREE_LIB.CanvasTexture(this.canvasGen);
+                this.demoTexture.colorSpace = THREE_LIB.SRGBColorSpace || THREE_LIB.sRGBEncoding;
+            }
+            if (this.demoTexture) {
+                mesh.material.map = this.demoTexture;
+                mesh.material.needsUpdate = true;
+            }
+        } else {
+            if (THREE_LIB && this.video) {
+                this.videoTexture = new THREE_LIB.VideoTexture(this.video);
+                this.videoTexture.colorSpace = THREE_LIB.SRGBColorSpace || THREE_LIB.sRGBEncoding;
+                this.videoTexture.minFilter = THREE_LIB.LinearFilter;
+                this.videoTexture.magFilter = THREE_LIB.LinearFilter;
+                this.videoTexture.generateMipmaps = false;
+                mesh.material.map = this.videoTexture;
+                mesh.material.needsUpdate = true;
+            } else {
+                screenEl.setAttribute('src', '#cinema-video');
+            }
+        }
+    },
+
+    startRenderLoop: function () {
         const self = this;
-        let angle = 0;
 
-        function renderFrame() {
-            if (!self.useDemoGenerator) return;
+        function animate() {
+            if (self.useDemoGenerator) {
+                self.renderDemoFrame();
+                if (self.demoTexture) {
+                    self.demoTexture.needsUpdate = true;
+                } else {
+                    self.attachScreenTexture();
+                }
+            } else {
+                // Real Video Mode
+                if (self.videoTexture) {
+                    self.videoTexture.needsUpdate = true;
+                } else {
+                    self.attachScreenTexture();
+                }
 
-            const ctx = self.canvasCtx;
-            const w = self.canvasGen.width;
-            const h = self.canvasGen.height;
-
-            // Background Gradient
-            angle += 0.01;
-            const r1 = Math.sin(angle) * 50 + 60;
-            const g1 = Math.cos(angle * 0.8) * 50 + 60;
-            const b1 = Math.sin(angle * 1.2) * 80 + 120;
-            ctx.fillStyle = `rgb(${r1}, ${g1}, ${b1})`;
-            ctx.fillRect(0, 0, w, h);
-
-            // Animated grid lines
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-            ctx.lineWidth = 2;
-            const gridOffset = (angle * 100) % 80;
-            for (let x = gridOffset; x < w; x += 80) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-            }
-            for (let y = gridOffset; y < h; y += 80) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-            }
-
-            // Bouncing ball
-            self.ball.x += self.ball.vx;
-            self.ball.y += self.ball.vy;
-            if (self.ball.x - self.ball.r < 0 || self.ball.x + self.ball.r > w) {
-                self.ball.vx *= -1;
-                self.ball.color = `hsl(${Math.random() * 360}, 100%, 60%)`;
-            }
-            if (self.ball.y - self.ball.r < 0 || self.ball.y + self.ball.r > h) {
-                self.ball.vy *= -1;
-                self.ball.color = `hsl(${Math.random() * 360}, 100%, 60%)`;
-            }
-
-            ctx.shadowColor = self.ball.color;
-            ctx.shadowBlur = 30;
-            ctx.fillStyle = self.ball.color;
-            ctx.beginPath();
-            ctx.arc(self.ball.x, self.ball.y, self.ball.r, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            // Center Title Text
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 56px Outfit, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('VR CINEMA 3D ENGINE', w / 2, h / 2 - 20);
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.font = '24px Outfit, sans-serif';
-            ctx.fillText('Load your local video file or enjoy the live demo stream', w / 2, h / 2 + 30);
-
-            // Clock Timestamp
-            const now = new Date();
-            const timeStr = now.toTimeString().split(' ')[0] + '.' + Math.floor(now.getMilliseconds() / 100);
-            ctx.fillStyle = '#ffb703';
-            ctx.font = 'bold 36px monospace';
-            ctx.fillText(timeStr, w / 2, h / 2 + 90);
-
-            // Update texture on A-Frame screen element
-            const screenEl = document.getElementById('cinema-screen');
-            if (screenEl && screenEl.object3DMap.mesh) {
-                const material = screenEl.object3DMap.mesh.material;
-                if (material && material.map) {
-                    material.map.needsUpdate = true;
+                // Update HUD timer & scrub bar smoothly
+                if (self.video && !self.video.paused && self.video.duration) {
+                    const scrubBar = document.getElementById('scrub-bar');
+                    if (scrubBar) {
+                        scrubBar.value = (self.video.currentTime / self.video.duration) * 100;
+                    }
+                    const curText = document.getElementById('time-current');
+                    const durText = document.getElementById('time-duration');
+                    if (curText) curText.innerText = self.formatTime(self.video.currentTime);
+                    if (durText) durText.innerText = self.formatTime(self.video.duration);
                 }
             }
 
-            self.animFrameId = requestAnimationFrame(renderFrame);
+            requestAnimationFrame(animate);
         }
 
-        renderFrame();
+        requestAnimationFrame(animate);
     },
 
     setupEventListeners: function () {
@@ -180,19 +253,12 @@ window.CinemaApp = {
         });
 
         // Mobile QR Modal Trigger
-        document.getElementById('btn-qr-modal').addEventListener('click', () => {
-            if (window.NetworkQR) window.NetworkQR.show();
-        });
-
-        // Video Timeupdate for HUD progress bar
-        this.video.addEventListener('timeupdate', () => {
-            if (!this.useDemoGenerator && this.video.duration) {
-                const pct = (this.video.currentTime / this.video.duration) * 100;
-                scrubBar.value = pct;
-                document.getElementById('time-current').innerText = this.formatTime(this.video.currentTime);
-                document.getElementById('time-duration').innerText = this.formatTime(this.video.duration);
-            }
-        });
+        const qrBtn = document.getElementById('btn-qr-modal');
+        if (qrBtn) {
+            qrBtn.addEventListener('click', () => {
+                if (window.NetworkQR) window.NetworkQR.show();
+            });
+        }
 
         // 3D VR Floating Menu Raycast Event Listeners
         this.setup3DVRMenuEvents();
@@ -235,17 +301,12 @@ window.CinemaApp = {
     },
 
     togglePlay: function () {
+        this.resumeAudioContext();
         const playBtn = document.getElementById('btn-play');
         const vrPlayText = document.getElementById('vr-play-text');
 
         if (this.useDemoGenerator) {
             this.isPlaying = !this.isPlaying;
-            if (this.isPlaying) {
-                if (!this.animFrameId) this.startDemoGenerator();
-            } else {
-                if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
-                this.animFrameId = null;
-            }
         } else {
             if (this.video.paused) {
                 this.video.play();
@@ -256,50 +317,12 @@ window.CinemaApp = {
             }
         }
 
-        playBtn.innerText = this.isPlaying ? '⏸ Pause' : '▶ Play';
+        if (playBtn) playBtn.innerText = this.isPlaying ? '⏸ Pause' : '▶ Play';
         if (vrPlayText) vrPlayText.setAttribute('value', this.isPlaying ? 'PAUSE' : 'PLAY');
     },
 
-    startVideoRenderLoop: function () {
-        if (this.videoRenderLoopActive) return;
-        this.videoRenderLoopActive = true;
-
-        const self = this;
-        function updateVideoFrame() {
-            if (self.useDemoGenerator) {
-                self.videoRenderLoopActive = false;
-                return;
-            }
-
-            const screenEl = document.getElementById('cinema-screen');
-            if (screenEl && screenEl.object3DMap.mesh) {
-                const mesh = screenEl.object3DMap.mesh;
-
-                if (mesh.material) {
-                    if (!mesh.material.map || mesh.material.map.image !== self.video) {
-                        if (typeof THREE !== 'undefined') {
-                            self.videoTexture = new THREE.VideoTexture(self.video);
-                            self.videoTexture.colorSpace = THREE.SRGBColorSpace;
-                            self.videoTexture.minFilter = THREE.LinearFilter;
-                            self.videoTexture.magFilter = THREE.LinearFilter;
-                            mesh.material.map = self.videoTexture;
-                        }
-                    }
-
-                    if (mesh.material.map) {
-                        mesh.material.map.needsUpdate = true;
-                    }
-                    mesh.material.needsUpdate = true;
-                }
-            }
-
-            requestAnimationFrame(updateVideoFrame);
-        }
-        requestAnimationFrame(updateVideoFrame);
-    },
-
     loadLocalVideoFile: function (file) {
-        if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
+        this.resumeAudioContext();
         this.useDemoGenerator = false;
 
         if (this.hlsInstance) {
@@ -310,51 +333,28 @@ window.CinemaApp = {
         const fileName = file.name.toLowerCase();
         const objectUrl = URL.createObjectURL(file);
 
-        // Unmute video on user action
         this.video.muted = false;
+        this.video.volume = 1.0;
 
         if (fileName.endsWith('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
             this.hlsInstance = new Hls();
             this.hlsInstance.loadSource(objectUrl);
             this.hlsInstance.attachMedia(this.video);
             this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                this.video.play();
-                this.isPlaying = true;
-                document.getElementById('btn-play').innerText = '⏸ Pause';
-                this.startVideoRenderLoop();
+                this.startPlaybackAndAttachTexture();
             });
         } else {
             this.video.src = objectUrl;
             this.video.load();
-            this.video.play().then(() => {
-                this.isPlaying = true;
-                document.getElementById('btn-play').innerText = '⏸ Pause';
-                this.startVideoRenderLoop();
-            }).catch(err => {
-                console.log('Video play trigger:', err);
-                // Retry muted if browser blocked un-muted autoplay
-                this.video.muted = true;
-                this.video.play().then(() => {
-                    this.isPlaying = true;
-                    document.getElementById('btn-play').innerText = '⏸ Pause';
-                    this.startVideoRenderLoop();
-                }).catch(e => {
-                    this.isPlaying = false;
-                    document.getElementById('btn-play').innerText = '▶ Play';
-                });
-            });
+            this.startPlaybackAndAttachTexture();
         }
-        
-        const screenEl = document.getElementById('cinema-screen');
-        if (screenEl) screenEl.setAttribute('src', '#cinema-video');
-        this.startVideoRenderLoop();
     },
 
     loadVideoUrl: function (urlStr) {
         if (!urlStr || !urlStr.trim()) return;
         urlStr = urlStr.trim();
 
-        if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
+        this.resumeAudioContext();
         this.useDemoGenerator = false;
 
         if (this.hlsInstance) {
@@ -363,41 +363,53 @@ window.CinemaApp = {
         }
 
         this.video.muted = false;
+        this.video.volume = 1.0;
 
         if (urlStr.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
             this.hlsInstance = new Hls();
             this.hlsInstance.loadSource(urlStr);
             this.hlsInstance.attachMedia(this.video);
             this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                this.video.play();
-                this.isPlaying = true;
-                document.getElementById('btn-play').innerText = '⏸ Pause';
-                this.startVideoRenderLoop();
+                this.startPlaybackAndAttachTexture();
             });
         } else {
             this.video.src = urlStr;
             this.video.load();
-            this.video.play().then(() => {
+            this.startPlaybackAndAttachTexture();
+        }
+    },
+
+    startPlaybackAndAttachTexture: function () {
+        this.attachScreenTexture();
+
+        const playPromise = this.video.play();
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
                 this.isPlaying = true;
-                document.getElementById('btn-play').innerText = '⏸ Pause';
-                this.startVideoRenderLoop();
+                this.updatePlayButtonUI(true);
+                this.attachScreenTexture();
             }).catch(err => {
-                console.log('Video URL play trigger:', err);
+                console.warn('[Video Engine] Unmuted play blocked by browser, attempting muted playback:', err);
                 this.video.muted = true;
                 this.video.play().then(() => {
                     this.isPlaying = true;
-                    document.getElementById('btn-play').innerText = '⏸ Pause';
-                    this.startVideoRenderLoop();
+                    this.updatePlayButtonUI(true);
+                    this.attachScreenTexture();
                 }).catch(e => {
+                    console.error('[Video Engine] Video play failed:', e);
                     this.isPlaying = false;
-                    document.getElementById('btn-play').innerText = '▶ Play';
+                    this.updatePlayButtonUI(false);
                 });
             });
         }
+    },
 
-        const screenEl = document.getElementById('cinema-screen');
-        if (screenEl) screenEl.setAttribute('src', '#cinema-video');
-        this.startVideoRenderLoop();
+    updatePlayButtonUI: function (playing) {
+        this.isPlaying = playing;
+        const playBtn = document.getElementById('btn-play');
+        const vrPlayText = document.getElementById('vr-play-text');
+        if (playBtn) playBtn.innerText = playing ? '⏸ Pause' : '▶ Play';
+        if (vrPlayText) vrPlayText.setAttribute('value', playing ? 'PAUSE' : 'PLAY');
     },
 
     seekDelta: function (seconds) {
@@ -407,7 +419,10 @@ window.CinemaApp = {
     },
 
     setVolume: function (vol) {
-        this.video.volume = vol;
+        if (this.video) {
+            this.video.volume = vol;
+            if (vol > 0) this.video.muted = false;
+        }
     },
 
     setScreenSize: function (preset) {
@@ -465,33 +480,37 @@ window.CinemaApp = {
             let source = null;
             if (this.useDemoGenerator && this.canvasGen) {
                 source = this.canvasGen;
-            } else if (!this.video.paused && this.video.readyState >= 2) {
+            } else if (this.video && !this.video.paused && this.video.readyState >= 2) {
                 source = this.video;
             }
 
             if (!source) return;
 
-            glowCtx.drawImage(source, 0, 0, 32, 18);
-            const imgData = glowCtx.getImageData(0, 0, 32, 18).data;
+            try {
+                glowCtx.drawImage(source, 0, 0, 32, 18);
+                const imgData = glowCtx.getImageData(0, 0, 32, 18).data;
 
-            let r = 0, g = 0, b = 0;
-            const count = imgData.length / 4;
+                let r = 0, g = 0, b = 0;
+                const count = imgData.length / 4;
 
-            for (let i = 0; i < imgData.length; i += 4) {
-                r += imgData[i];
-                g += imgData[i + 1];
-                b += imgData[i + 2];
+                for (let i = 0; i < imgData.length; i += 4) {
+                    r += imgData[i];
+                    g += imgData[i + 1];
+                    b += imgData[i + 2];
+                }
+
+                r = Math.floor(r / count);
+                g = Math.floor(g / count);
+                b = Math.floor(b / count);
+
+                const hexColor = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+                const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                const intensity = 0.5 + luminance * 1.5;
+
+                this.screenGlowLight.setAttribute('light', `color: ${hexColor}; intensity: ${intensity.toFixed(2)}`);
+            } catch (e) {
+                // Ignore cross-origin canvas taint errors if streaming cross-domain video
             }
-
-            r = Math.floor(r / count);
-            g = Math.floor(g / count);
-            b = Math.floor(b / count);
-
-            const hexColor = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-            const intensity = 0.5 + luminance * 1.5;
-
-            this.screenGlowLight.setAttribute('light', `color: ${hexColor}; intensity: ${intensity.toFixed(2)}`);
         }, 100);
     },
 
@@ -521,6 +540,7 @@ window.CinemaApp = {
     },
 
     formatTime: function (sec) {
+        if (isNaN(sec) || !isFinite(sec)) return '0:00';
         const m = Math.floor(sec / 60);
         const s = Math.floor(sec % 60);
         return `${m}:${s < 10 ? '0' : ''}${s}`;
@@ -529,6 +549,4 @@ window.CinemaApp = {
 
 document.addEventListener('DOMContentLoaded', () => {
     window.CinemaApp.init();
-    // Start initial demo generator canvas stream
-    window.CinemaApp.startDemoGenerator();
 });
