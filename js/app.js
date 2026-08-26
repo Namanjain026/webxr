@@ -1,337 +1,155 @@
 /**
- * Main WebXR Cinema Application Engine
- * Handles Video Playback, Canvas Test Generator, Dynamic Screen Glow,
- * 2D HUD Sync, and 3D VR Menu interactions.
+ * Pure WebXR Cinema Engine (No Raw Three.js Hacks)
+ * Handles Native Video Playback, HLS Streaming, Audio Unmuting,
+ * Progress HUD Sync, and A-Frame Head-Tracked Cardboard VR Mode.
  */
 
 window.CinemaApp = {
     video: null,
-    canvasGen: null,
-    canvasCtx: null,
-    screenGlowLight: null,
+    screenEl: null,
     hlsInstance: null,
-    isPlaying: false,
-    useDemoGenerator: true,
-    demoAngle: 0,
-    ball: { x: 640, y: 360, vx: 5, vy: 4, r: 40, color: '#00f0ff' },
 
     init: function () {
         this.video = document.getElementById('cinema-video');
-        this.screenGlowLight = document.getElementById('screen-glow-light');
-        
-        this.setupDemoCanvasGenerator();
+        this.screenEl = document.getElementById('cinema-screen');
+
         this.setupEventListeners();
-        this.setupDynamicScreenGlow();
-        this.applyTheme('grand-velvet');
-
-        // Start initial screen setup & unified render loop
-        this.startRenderLoop();
-    },
-
-    setupDemoCanvasGenerator: function () {
-        this.canvasGen = document.getElementById('demo-canvas-asset');
-        if (!this.canvasGen) {
-            this.canvasGen = document.createElement('canvas');
-            this.canvasGen.id = 'demo-canvas-asset';
-            this.canvasGen.width = 1280;
-            this.canvasGen.height = 720;
-            const assets = document.querySelector('a-assets');
-            if (assets) assets.appendChild(this.canvasGen);
-        }
-        this.canvasCtx = this.canvasGen.getContext('2d');
-        this.ball = { x: 640, y: 360, vx: 5, vy: 4, r: 40, color: '#00f0ff' };
-    },
-
-    renderDemoFrame: function () {
-        if (!this.canvasCtx) return;
-        const ctx = this.canvasCtx;
-        const w = this.canvasGen.width;
-        const h = this.canvasGen.height;
-
-        // Background Gradient
-        this.demoAngle += 0.01;
-        const r1 = Math.sin(this.demoAngle) * 50 + 60;
-        const g1 = Math.cos(this.demoAngle * 0.8) * 50 + 60;
-        const b1 = Math.sin(this.demoAngle * 1.2) * 80 + 120;
-        ctx.fillStyle = `rgb(${r1}, ${g1}, ${b1})`;
-        ctx.fillRect(0, 0, w, h);
-
-        // Animated grid lines
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-        ctx.lineWidth = 2;
-        const gridOffset = (this.demoAngle * 100) % 80;
-        for (let x = gridOffset; x < w; x += 80) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-        }
-        for (let y = gridOffset; y < h; y += 80) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-        }
-
-        // Bouncing ball
-        this.ball.x += this.ball.vx;
-        this.ball.y += this.ball.vy;
-        if (this.ball.x - this.ball.r < 0 || this.ball.x + this.ball.r > w) {
-            this.ball.vx *= -1;
-            this.ball.color = `hsl(${Math.random() * 360}, 100%, 60%)`;
-        }
-        if (this.ball.y - this.ball.r < 0 || this.ball.y + this.ball.r > h) {
-            this.ball.vy *= -1;
-            this.ball.color = `hsl(${Math.random() * 360}, 100%, 60%)`;
-        }
-
-        ctx.shadowColor = this.ball.color;
-        ctx.shadowBlur = 30;
-        ctx.fillStyle = this.ball.color;
-        ctx.beginPath();
-        ctx.arc(this.ball.x, this.ball.y, this.ball.r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // Center Title Text
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 56px Outfit, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('VR CINEMA 3D ENGINE', w / 2, h / 2 - 20);
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = '24px Outfit, sans-serif';
-        ctx.fillText('Load your local video file or enjoy the live demo stream', w / 2, h / 2 + 30);
-
-        // Clock Timestamp
-        const now = new Date();
-        const timeStr = now.toTimeString().split(' ')[0] + '.' + Math.floor(now.getMilliseconds() / 100);
-        ctx.fillStyle = '#ffb703';
-        ctx.font = 'bold 36px monospace';
-        ctx.fillText(timeStr, w / 2, h / 2 + 90);
-    },
-
-    bindVideoToScreen: function () {
-        const screenEl = document.getElementById('cinema-screen');
-        if (!screenEl) return;
-
-        // Force A-Frame material component update
-        screenEl.removeAttribute('src');
-        screenEl.setAttribute('src', '#cinema-video');
-
-        const THREE_LIB = window.THREE || (typeof AFRAME !== 'undefined' ? AFRAME.THREE : null);
-        if (screenEl.object3DMap && screenEl.object3DMap.mesh && THREE_LIB && this.video) {
-            const mesh = screenEl.object3DMap.mesh;
-            if (mesh.material) {
-                const videoTexture = new THREE_LIB.VideoTexture(this.video);
-                videoTexture.colorSpace = THREE_LIB.SRGBColorSpace || THREE_LIB.sRGBEncoding;
-                videoTexture.minFilter = THREE_LIB.LinearFilter;
-                videoTexture.magFilter = THREE_LIB.LinearFilter;
-                videoTexture.generateMipmaps = false;
-                mesh.material.map = videoTexture;
-                mesh.material.needsUpdate = true;
-            }
-        }
-    },
-
-    startRenderLoop: function () {
-        const self = this;
-
-        function animate() {
-            const screenEl = document.getElementById('cinema-screen');
-
-            if (self.useDemoGenerator) {
-                self.renderDemoFrame();
-
-                if (screenEl && screenEl.components && screenEl.components.material) {
-                    const mat = screenEl.components.material.material;
-                    if (mat && mat.map) {
-                        mat.map.needsUpdate = true;
-                    }
-                }
-            } else {
-                // Real Video Mode
-                if (screenEl && screenEl.components && screenEl.components.material) {
-                    const mat = screenEl.components.material.material;
-                    if (mat && mat.map) {
-                        mat.map.needsUpdate = true;
-                    }
-                }
-
-                // Update HUD timer & scrub bar smoothly
-                if (self.video && !self.video.paused && self.video.duration) {
-                    const scrubBar = document.getElementById('scrub-bar');
-                    if (scrubBar) {
-                        scrubBar.value = (self.video.currentTime / self.video.duration) * 100;
-                    }
-                    const curText = document.getElementById('time-current');
-                    const durText = document.getElementById('time-duration');
-                    if (curText) curText.innerText = self.formatTime(self.video.currentTime);
-                    if (durText) durText.innerText = self.formatTime(self.video.duration);
-                }
-            }
-
-            requestAnimationFrame(animate);
-        }
-
-        requestAnimationFrame(animate);
+        this.setupVideoEvents();
     },
 
     setupEventListeners: function () {
-        // Play / Pause Toggle
-        document.getElementById('btn-play').addEventListener('click', () => this.togglePlay());
-        document.getElementById('vr-play-btn').addEventListener('click', () => this.togglePlay());
+        // Play / Pause Button
+        const playBtn = document.getElementById('btn-play');
+        if (playBtn) {
+            playBtn.addEventListener('click', () => this.togglePlay());
+        }
 
-        // Seek Bar Scrubbing
+        // Scrub Bar Seeking
         const scrubBar = document.getElementById('scrub-bar');
-        scrubBar.addEventListener('input', (e) => {
-            if (!this.useDemoGenerator && this.video.duration) {
-                const targetTime = (e.target.value / 100) * this.video.duration;
-                this.video.currentTime = targetTime;
-            }
-        });
+        if (scrubBar) {
+            scrubBar.addEventListener('input', (e) => {
+                if (this.video && this.video.duration) {
+                    const targetTime = (e.target.value / 100) * this.video.duration;
+                    this.video.currentTime = targetTime;
+                }
+            });
+        }
 
-        // Volume Slider
+        // Volume Control Slider
         const volumeSlider = document.getElementById('volume-slider');
-        volumeSlider.addEventListener('input', (e) => {
-            this.setVolume(e.target.value / 100);
-        });
+        if (volumeSlider) {
+            volumeSlider.addEventListener('input', (e) => {
+                if (this.video) {
+                    this.video.volume = e.target.value / 100;
+                    if (this.video.volume > 0) this.video.muted = false;
+                }
+            });
+        }
 
-        // File Input Picker
+        // Local File Input
         const fileInput = document.getElementById('video-file-input');
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                this.loadLocalVideoFile(file);
-            }
-        });
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) this.loadLocalFile(file);
+            });
+        }
 
-        // URL / Stream Link Input Button
+        // Stream URL Button
         const btnUrlStream = document.getElementById('btn-url-stream');
         if (btnUrlStream) {
             btnUrlStream.addEventListener('click', () => {
-                const url = prompt('Enter Direct Video or HLS Stream URL (.mp4, .mkv, .webm, .m3u8):');
+                const url = prompt('Enter Video or Stream URL (.mp4, .mkv, .webm, .m3u8):');
                 if (url) this.loadVideoUrl(url);
             });
         }
 
-        // Screen Size Selector
-        const sizeSelect = document.getElementById('select-screen-size');
-        sizeSelect.addEventListener('change', (e) => this.setScreenSize(e.target.value));
-
-        // Theme Selector
-        const themeSelect = document.getElementById('select-theme');
-        themeSelect.addEventListener('change', (e) => this.applyTheme(e.target.value));
-
-        // 3D Stereo Mode Selector
+        // 3D Stereo Video Mode (Mono, Side-by-Side 3D, Over-Under 3D)
         const stereoSelect = document.getElementById('select-stereo-mode');
-        stereoSelect.addEventListener('change', (e) => this.setStereoMode(e.target.value));
-
-        // Seat Selector Buttons
-        document.querySelectorAll('.btn-seat').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const seatKey = e.currentTarget.getAttribute('data-seat');
-                const manager = document.getElementById('rig').components['vr-controller-manager'];
-                if (manager) manager.moveToSeat(seatKey);
-            });
-        });
-
-        // Mobile QR Modal Trigger
-        const qrBtn = document.getElementById('btn-qr-modal');
-        if (qrBtn) {
-            qrBtn.addEventListener('click', () => {
-                if (window.NetworkQR) window.NetworkQR.show();
+        if (stereoSelect) {
+            stereoSelect.addEventListener('change', (e) => {
+                if (this.screenEl) {
+                    this.screenEl.setAttribute('stereo-video', `mode: ${e.target.value}`);
+                }
             });
         }
-
-        // 3D VR Floating Menu Raycast Event Listeners
-        this.setup3DVRMenuEvents();
     },
 
-    setup3DVRMenuEvents: function () {
-        const vrSeekBack = document.getElementById('vr-seek-back-btn');
-        if (vrSeekBack) {
-            vrSeekBack.addEventListener('click', () => this.seekDelta(-10));
-        }
+    setupVideoEvents: function () {
+        if (!this.video) return;
 
-        const vrSeekFwd = document.getElementById('vr-seek-fwd-btn');
-        if (vrSeekFwd) {
-            vrSeekFwd.addEventListener('click', () => this.seekDelta(10));
-        }
+        // Sync HUD scrub bar on time update
+        this.video.addEventListener('timeupdate', () => {
+            if (this.video.duration) {
+                const scrubBar = document.getElementById('scrub-bar');
+                if (scrubBar) {
+                    scrubBar.value = (this.video.currentTime / this.video.duration) * 100;
+                }
+                const curText = document.getElementById('time-current');
+                const durText = document.getElementById('time-duration');
+                if (curText) curText.innerText = this.formatTime(this.video.currentTime);
+                if (durText) durText.innerText = this.formatTime(this.video.duration);
+            }
+        });
 
-        const vrThemeBtn = document.getElementById('vr-theme-btn');
-        if (vrThemeBtn) {
-            vrThemeBtn.addEventListener('click', () => {
-                const themes = ['grand-velvet', 'cyberpunk', 'cozy-home'];
-                const cur = document.getElementById('select-theme').value;
-                const nextIdx = (themes.indexOf(cur) + 1) % themes.length;
-                const nextTheme = themes[nextIdx];
-                document.getElementById('select-theme').value = nextTheme;
-                this.applyTheme(nextTheme);
-            });
-        }
-
-        const vrStereoBtn = document.getElementById('vr-stereo-btn');
-        if (vrStereoBtn) {
-            vrStereoBtn.addEventListener('click', () => {
-                const modes = ['mono', 'sbs', 'ou'];
-                const cur = document.getElementById('select-stereo-mode').value;
-                const nextIdx = (modes.indexOf(cur) + 1) % modes.length;
-                const nextMode = modes[nextIdx];
-                document.getElementById('select-stereo-mode').value = nextMode;
-                this.setStereoMode(nextMode);
-            });
-        }
+        // Update Play Button state on video play/pause
+        this.video.addEventListener('play', () => this.updatePlayUI(true));
+        this.video.addEventListener('pause', () => this.updatePlayUI(false));
+        this.video.addEventListener('ended', () => this.updatePlayUI(false));
     },
 
     togglePlay: function () {
-        const playBtn = document.getElementById('btn-play');
-        const vrPlayText = document.getElementById('vr-play-text');
+        if (!this.video) return;
 
-        if (this.useDemoGenerator) {
-            this.isPlaying = !this.isPlaying;
-        } else {
-            if (this.video.paused) {
-                this.video.muted = false;
+        if (this.video.paused) {
+            this.video.muted = false;
+            this.video.play().catch(err => {
+                console.warn('[Cinema Engine] Play blocked, trying muted play:', err);
+                this.video.muted = true;
                 this.video.play();
-                this.isPlaying = true;
-            } else {
-                this.video.pause();
-                this.isPlaying = false;
-            }
+            });
+        } else {
+            this.video.pause();
         }
-
-        if (playBtn) playBtn.innerText = this.isPlaying ? '⏸ Pause' : '▶ Play';
-        if (vrPlayText) vrPlayText.setAttribute('value', this.isPlaying ? 'PAUSE' : 'PLAY');
     },
 
-    loadLocalVideoFile: function (file) {
-        this.useDemoGenerator = false;
+    updatePlayUI: function (isPlaying) {
+        const playBtn = document.getElementById('btn-play');
+        if (playBtn) {
+            playBtn.innerText = isPlaying ? '⏸ Pause' : '▶ Play';
+        }
+    },
+
+    loadLocalFile: function (file) {
+        if (!this.video) return;
 
         if (this.hlsInstance) {
             this.hlsInstance.destroy();
             this.hlsInstance = null;
         }
 
-        const fileName = file.name.toLowerCase();
         const objectUrl = URL.createObjectURL(file);
+        const fileName = file.name.toLowerCase();
 
         this.video.muted = false;
-        this.video.volume = 1.0;
 
         if (fileName.endsWith('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
             this.hlsInstance = new Hls();
             this.hlsInstance.loadSource(objectUrl);
             this.hlsInstance.attachMedia(this.video);
             this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                this.startVideoPlayback();
+                this.startPlayback();
             });
         } else {
             this.video.src = objectUrl;
             this.video.load();
-            this.startVideoPlayback();
+            this.startPlayback();
         }
     },
 
     loadVideoUrl: function (urlStr) {
-        if (!urlStr || !urlStr.trim()) return;
+        if (!this.video || !urlStr) return;
         urlStr = urlStr.trim();
-
-        this.useDemoGenerator = false;
 
         if (this.hlsInstance) {
             this.hlsInstance.destroy();
@@ -339,155 +157,34 @@ window.CinemaApp = {
         }
 
         this.video.muted = false;
-        this.video.volume = 1.0;
 
         if (urlStr.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
             this.hlsInstance = new Hls();
             this.hlsInstance.loadSource(urlStr);
             this.hlsInstance.attachMedia(this.video);
             this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                this.startVideoPlayback();
+                this.startPlayback();
             });
         } else {
             this.video.src = urlStr;
             this.video.load();
-            this.startVideoPlayback();
+            this.startPlayback();
         }
     },
 
-    startVideoPlayback: function () {
-        this.bindVideoToScreen();
-
-        const playPromise = this.video.play();
-        if (playPromise !== undefined) {
-            playPromise.then(() => {
-                this.isPlaying = true;
-                this.updatePlayButtonUI(true);
-                this.bindVideoToScreen();
-            }).catch(err => {
-                console.warn('[Video Engine] Unmuted play blocked by browser, attempting muted playback:', err);
-                this.video.muted = true;
-                this.video.play().then(() => {
-                    this.isPlaying = true;
-                    this.updatePlayButtonUI(true);
-                    this.bindVideoToScreen();
-                }).catch(e => {
-                    console.error('[Video Engine] Video play failed:', e);
-                    this.isPlaying = false;
-                    this.updatePlayButtonUI(false);
-                });
-            });
+    startPlayback: function () {
+        if (this.screenEl) {
+            // Update A-Frame screen material source
+            this.screenEl.setAttribute('src', '#cinema-video');
         }
-    },
 
-    updatePlayButtonUI: function (playing) {
-        this.isPlaying = playing;
-        const playBtn = document.getElementById('btn-play');
-        const vrPlayText = document.getElementById('vr-play-text');
-        if (playBtn) playBtn.innerText = playing ? '⏸ Pause' : '▶ Play';
-        if (vrPlayText) vrPlayText.setAttribute('value', playing ? 'PAUSE' : 'PLAY');
-    },
-
-    seekDelta: function (seconds) {
-        if (!this.useDemoGenerator && this.video.duration) {
-            this.video.currentTime = Math.max(0, Math.min(this.video.duration, this.video.currentTime + seconds));
-        }
-    },
-
-    setVolume: function (vol) {
-        if (this.video) {
-            this.video.volume = vol;
-            if (vol > 0) this.video.muted = false;
-        }
-    },
-
-    setScreenSize: function (preset) {
-        const screen = document.getElementById('cinema-screen');
-        if (!screen) return;
-
-        if (preset === 'imax') {
-            screen.setAttribute('scale', '1.4 1.4 1.4');
-        } else if (preset === 'ultrawide') {
-            screen.setAttribute('scale', '1.6 1.0 1.2');
-        } else { // standard
-            screen.setAttribute('scale', '1.0 1.0 1.0');
-        }
-    },
-
-    setStereoMode: function (mode) {
-        const screen = document.getElementById('cinema-screen');
-        if (screen) {
-            screen.setAttribute('stereo-video', `mode: ${mode}`);
-        }
-    },
-
-    applyTheme: function (themeName) {
-        const grandVelvetEnv = document.getElementById('env-grand-velvet');
-        const cyberpunkEnv = document.getElementById('env-cyberpunk');
-        const cozyHomeEnv = document.getElementById('env-cozy-home');
-
-        if (grandVelvetEnv) grandVelvetEnv.setAttribute('visible', themeName === 'grand-velvet');
-        if (cyberpunkEnv) cyberpunkEnv.setAttribute('visible', themeName === 'cyberpunk');
-        if (cozyHomeEnv) cozyHomeEnv.setAttribute('visible', themeName === 'cozy-home');
-
-        // Adjust ambient ceiling lighting color & intensity
-        const ambientLight = document.getElementById('ambient-light');
-        if (ambientLight) {
-            if (themeName === 'cyberpunk') {
-                ambientLight.setAttribute('light', 'color: #0d1b2a; intensity: 0.35');
-            } else if (themeName === 'cozy-home') {
-                ambientLight.setAttribute('light', 'color: #3d2b1f; intensity: 0.45');
-            } else {
-                ambientLight.setAttribute('light', 'color: #1a1c23; intensity: 0.4');
-            }
-        }
-    },
-
-    setupDynamicScreenGlow: function () {
-        // Sample screen canvas pixels at 10 FPS to update screen glow spotlight
-        const glowCanvas = document.createElement('canvas');
-        glowCanvas.width = 32;
-        glowCanvas.height = 18;
-        const glowCtx = glowCanvas.getContext('2d');
-
-        setInterval(() => {
-            if (!this.screenGlowLight) return;
-
-            let source = null;
-            if (this.useDemoGenerator && this.canvasGen) {
-                source = this.canvasGen;
-            } else if (this.video && !this.video.paused && this.video.readyState >= 2) {
-                source = this.video;
-            }
-
-            if (!source) return;
-
-            try {
-                glowCtx.drawImage(source, 0, 0, 32, 18);
-                const imgData = glowCtx.getImageData(0, 0, 32, 18).data;
-
-                let r = 0, g = 0, b = 0;
-                const count = imgData.length / 4;
-
-                for (let i = 0; i < imgData.length; i += 4) {
-                    r += imgData[i];
-                    g += imgData[i + 1];
-                    b += imgData[i + 2];
-                }
-
-                r = Math.floor(r / count);
-                g = Math.floor(g / count);
-                b = Math.floor(b / count);
-
-                const hexColor = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-                const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-                const intensity = 0.5 + luminance * 1.5;
-
-                this.screenGlowLight.setAttribute('light', `color: ${hexColor}; intensity: ${intensity.toFixed(2)}`);
-            } catch (e) {
-                // Ignore cross-origin canvas taint errors if streaming cross-domain video
-            }
-        }, 100);
+        this.video.play().then(() => {
+            this.updatePlayUI(true);
+        }).catch(err => {
+            console.warn('[Cinema Engine] Muted playback fallback triggered:', err);
+            this.video.muted = true;
+            this.video.play().then(() => this.updatePlayUI(true));
+        });
     },
 
     formatTime: function (sec) {

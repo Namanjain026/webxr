@@ -16,64 +16,52 @@
     <!-- A-Frame 1.6.0 WebXR & Cardboard Engine -->
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
 
-    <!-- HLS.js for Streaming & Advanced Video Format Decoding -->
+    <!-- HLS.js for Streaming -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
-    <!-- Custom Scripts -->
-    <script src="js/textures.js"></script>
+    <!-- Custom Stereo Shader & App Scripts -->
     <script src="js/stereo-shader.js"></script>
-    <script src="js/vr-controls.js"></script>
-    <script src="js/network-qr.js"></script>
     <script src="js/app.js"></script>
 </head>
 <body>
-
-    <!-- Video Element (Source for Cinema Screen Texture & Audio) -->
-    <video id="cinema-video" crossorigin="anonymous" playsinline webkit-playsinline style="position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -9999;"></video>
 
     <!-- A-Frame 3D Scene Container -->
     <a-scene id="cinema-scene" embedded vr-mode-ui="enabled: true" loading-screen="enabled: false" renderer="antialias: true; colorManagement: true;">
         
         <!-- Asset Management System -->
-        <a-assets>
-            <canvas id="demo-canvas-asset" width="1280" height="720"></canvas>
+        <a-assets timeout="10000">
+            <!-- Native HTML5 Video Asset -->
+            <video id="cinema-video" crossorigin="anonymous" playsinline webkit-playsinline preload="auto" src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>
         </a-assets>
 
-        <!-- Ambient & Directional Lighting Setup -->
-        <a-light id="ambient-light" type="ambient" color="#1a1c23" intensity="0.4"></a-light>
-
-        <!-- Ceiling Downward Spotlight aimed at Seating Rows -->
+        <!-- Lighting Setup -->
+        <a-light id="ambient-light" type="ambient" color="#1a1c23" intensity="0.5"></a-light>
         <a-light type="spot" color="#ffffff" intensity="0.6" position="0 7 -2" target="#rig" angle="60" penumbra="0.5"></a-light>
+        <a-light id="screen-glow-light" type="point" color="#00f0ff" intensity="1.0" distance="18" position="0 3.2 -5"></a-light>
 
-        <!-- Dynamic Screen Bounce Light (Updated dynamically via video frame color sampling) -->
-        <a-light id="screen-glow-light" type="point" color="#00f0ff" intensity="1.2" distance="18" position="0 3.2 -5"></a-light>
-
-        <!-- Camera Rig & Player Controller -->
-        <a-entity id="rig" position="0 1.6 0" vr-controller-manager>
-            <a-camera id="vr-camera" look-controls="pointerLockEnabled: false" wasd-controls="enabled: false">
-                <!-- Gaze / Fuse Countdown Cursor for Google Cardboard VR Mode -->
+        <!-- Camera Rig with Head Movement / Gyro Look Controls -->
+        <a-entity id="rig" position="0 1.6 0">
+            <a-camera id="vr-camera" look-controls="touchEnabled: true; magicWindowTrackingEnabled: true" wasd-controls="enabled: false">
+                <!-- Fuse Cursor for Google Cardboard Gaze Selection -->
                 <a-entity id="gaze-cursor" 
                           cursor="fuse: true; fuseTimeout: 1500" 
                           position="0 0 -1"
-                          geometry="primitive: ring; radiusInner: 0.015; radiusOuter: 0.025; thetaLength: 360" 
+                          geometry="primitive: ring; radiusInner: 0.015; radiusOuter: 0.025" 
                           material="color: #ffffff; shader: flat; opacity: 0.8" 
-                          raycaster="objects: .raycastable" 
-                          visible="false" 
-                          fuse-feedback>
+                          raycaster="objects: .raycastable">
                 </a-entity>
             </a-camera>
 
-            <!-- WebXR 6DoF Laser Controllers for VR Headsets (Meta Quest / SteamVR) -->
+            <!-- WebXR Laser Controllers -->
             <a-entity laser-controls="hand: right" raycaster="objects: .raycastable; far: 20"></a-entity>
             <a-entity laser-controls="hand: left" raycaster="objects: .raycastable; far: 20"></a-entity>
         </a-entity>
 
-        <!-- Curved Cinema Screen -->
+        <!-- Curved Cinema Screen Entity -->
         <a-entity id="screen-container" position="0 3.2 -8">
-            <!-- Curved Video Mesh -->
             <a-curvedvideo id="cinema-screen" 
                             class="raycastable"
-                            src="#demo-canvas-asset" 
+                            src="#cinema-video" 
                             radius="10" 
                             theta-length="100" 
                             height="5.8" 
@@ -92,113 +80,26 @@
             </a-curvedvideo>
         </a-entity>
 
-        <!-- ================= THEATER THEME 1: GRAND VELVET AUDITORIUM ================= -->
+        <!-- Auditorium Environment -->
         <a-entity id="env-grand-velvet" visible="true">
-            <!-- Auditorium Floor -->
             <a-plane position="0 0 -2" rotation="-90 0 0" width="24" height="24" material="color: #12141d; roughness: 0.6"></a-plane>
-            
-            <!-- Ceiling with Acoustic Wood Slats -->
             <a-plane position="0 8 -2" rotation="90 0 0" width="24" height="24" material="color: #1a0f0a; roughness: 0.9"></a-plane>
-            
-            <!-- Side Walls with Warm Sconces -->
             <a-plane position="-12 4 -2" rotation="0 90 0" width="24" height="10" material="color: #2b170c; roughness: 0.8"></a-plane>
             <a-plane position="12 4 -2" rotation="0 -90 0" width="24" height="10" material="color: #2b170c; roughness: 0.8"></a-plane>
 
-            <!-- Wall Sconce Lights -->
-            <a-light type="point" color="#ffb703" intensity="0.5" distance="6" position="-11.8 3.5 -2"></a-light>
-            <a-light type="point" color="#ffb703" intensity="0.5" distance="6" position="11.8 3.5 -2"></a-light>
-
-            <!-- Seating Rows (Red Velvet Plush Seats) -->
-            <!-- Center Sweet Spot Seat Row -->
+            <!-- Seating Rows -->
             <a-entity id="seat-center-row" position="0 0.5 0">
                 <a-box position="-1.2 0 0" width="0.8" height="0.9" depth="0.8" material="color: #800c24; roughness: 0.7"></a-box>
                 <a-box position="0 0 0" width="0.8" height="0.9" depth="0.8" material="color: #a00c24; roughness: 0.7"></a-box>
                 <a-box position="1.2 0 0" width="0.8" height="0.9" depth="0.8" material="color: #800c24; roughness: 0.7"></a-box>
             </a-entity>
-
-            <!-- Front Row Seats -->
-            <a-entity id="seat-front-row" position="0 0.2 -3.8">
-                <a-box position="-1.5 0 0" width="0.8" height="0.8" depth="0.8" material="color: #600a1c"></a-box>
-                <a-box position="0 0 0" width="0.8" height="0.8" depth="0.8" material="color: #600a1c"></a-box>
-                <a-box position="1.5 0 0" width="0.8" height="0.8" depth="0.8" material="color: #600a1c"></a-box>
-            </a-entity>
-
-            <!-- Balcony Back Row Seats -->
-            <a-entity id="seat-balcony-row" position="0 2.4 5.5">
-                <a-box position="-1.2 0 0" width="0.8" height="0.9" depth="0.8" material="color: #600a1c"></a-box>
-                <a-box position="0 0 0" width="0.8" height="0.9" depth="0.8" material="color: #600a1c"></a-box>
-                <a-box position="1.2 0 0" width="0.8" height="0.9" depth="0.8" material="color: #600a1c"></a-box>
-            </a-entity>
-        </a-entity>
-
-        <!-- ================= THEATER THEME 2: CYBERPUNK VR LOUNGE ================= -->
-        <a-entity id="env-cyberpunk" visible="false">
-            <!-- Neon Grid Floor -->
-            <a-plane position="0 0 -2" rotation="-90 0 0" width="24" height="24" material="color: #050814; roughness: 0.2; metalness: 0.8"></a-plane>
-
-            <!-- Cyberpunk Neon Wall Strips -->
-            <a-box position="-11.9 4 -2" width="0.2" height="0.2" depth="24" material="color: #00f0ff; shader: flat; emissive: #00f0ff"></a-box>
-            <a-box position="11.9 4 -2" width="0.2" height="0.2" depth="24" material="color: #ff2a5f; shader: flat; emissive: #ff2a5f"></a-box>
-        </a-entity>
-
-        <!-- ================= THEATER THEME 3: COZY HOME THEATER ================= -->
-        <a-entity id="env-cozy-home" visible="false">
-            <!-- Wood Parquet Floor -->
-            <a-plane position="0 0 -2" rotation="-90 0 0" width="16" height="16" material="color: #2b170c; roughness: 0.5"></a-plane>
-
-            <!-- Soft Carpet Rug under couch -->
-            <a-plane position="0 0.01 0" rotation="-90 0 0" width="6" height="4" material="color: #d8c3a5; roughness: 0.9"></a-plane>
-
-            <!-- Warm Couch Sofa -->
-            <a-box position="0 0.4 0" width="2.4" height="0.6" depth="1.0" material="color: #4a4e69"></a-box>
-        </a-entity>
-
-        <!-- ================= FLOATING 3D IN-VR DASHBOARD MENU ================= -->
-        <a-entity id="vr-floating-menu" position="0 1.3 -2.2" rotation="0 0 0" visible="true">
-            <!-- Glass Backing Panel -->
-            <a-plane width="2.2" height="1.0" material="color: #0d0e15; opacity: 0.88; transparent: true; roughness: 0.2" radius="0.08"></a-plane>
-
-            <!-- Menu Header Title -->
-            <a-text value="VR CINEMA CONTROL" position="0 0.38 0.02" align="center" width="2.4" color="#00f0ff"></a-text>
-
-            <!-- 3D Interactive Buttons (.raycastable for Laser & Gaze Cursor) -->
-            <!-- Play / Pause Button -->
-            <a-plane id="vr-play-btn" class="raycastable" position="-0.7 0.1 0.02" width="0.5" height="0.22" material="color: #ff2a5f; radius: 0.04">
-                <a-text id="vr-play-text" value="PLAY / PAUSE" align="center" width="2.0" color="#ffffff"></a-text>
-            </a-plane>
-
-            <!-- Seek -10s -->
-            <a-plane id="vr-seek-back-btn" class="raycastable" position="-0.1 0.1 0.02" width="0.45" height="0.22" material="color: #2a2d3d; radius: 0.04">
-                <a-text value="-10s" align="center" width="2.2" color="#ffffff"></a-text>
-            </a-plane>
-
-            <!-- Seek +10s -->
-            <a-plane id="vr-seek-fwd-btn" class="raycastable" position="0.45 0.1 0.02" width="0.45" height="0.22" material="color: #2a2d3d; radius: 0.04">
-                <a-text value="+10s" align="center" width="2.2" color="#ffffff"></a-text>
-            </a-plane>
-
-            <!-- Theme Switcher Button -->
-            <a-plane id="vr-theme-btn" class="raycastable" position="-0.6 -0.2 0.02" width="0.6" height="0.22" material="color: #2a2d3d; radius: 0.04">
-                <a-text value="THEME CYCLE" align="center" width="1.8" color="#ffb703"></a-text>
-            </a-plane>
-
-            <!-- 3D Stereo Mode Button -->
-            <a-plane id="vr-stereo-btn" class="raycastable" position="0.1 -0.2 0.02" width="0.6" height="0.22" material="color: #2a2d3d; radius: 0.04">
-                <a-text value="3D STEREO" align="center" width="1.8" color="#00f0ff"></a-text>
-            </a-plane>
-
-            <!-- Toggle VR Menu Button -->
-            <a-plane id="vr-close-menu-btn" class="raycastable" position="0.8 -0.2 0.02" width="0.35" height="0.22" material="color: #d90429; radius: 0.04">
-                <a-text value="HIDE" align="center" width="1.8" color="#ffffff"></a-text>
-            </a-plane>
         </a-entity>
 
     </a-scene>
 
-    <!-- ================= 2D DESKTOP GLASSMORPHIC HUD ================= -->
+    <!-- 2D DESKTOP / MOBILE GLASSMORPHIC HUD -->
     <div id="desktop-hud">
         
-        <!-- Header Bar -->
         <header class="hud-header hud-interactive">
             <div class="brand">
                 <span class="brand-icon">🎬</span>
@@ -206,24 +107,13 @@
             </div>
 
             <div class="header-actions">
-                <!-- Seat Selector Buttons -->
-                <button class="btn-secondary btn-seat" data-seat="front">Front Row</button>
-                <button class="btn-secondary btn-seat" data-seat="center">Center Seat</button>
-                <button class="btn-secondary btn-seat" data-seat="balcony">Balcony</button>
-
-                <!-- Mobile QR Code Pair Modal Trigger -->
-                <button id="btn-qr-modal" class="btn-secondary" title="Connect Google Cardboard Smartphone">
-                    📱 Cardboard QR
-                </button>
-
-                <!-- Enter VR Native Button -->
+                <!-- Enter VR Button (Triggers A-Frame Side-by-Side Dark Circle Headset View) -->
                 <button id="btn-enter-vr" class="btn-primary" onclick="document.querySelector('a-scene').enterVR()">
-                    🥽 ENTER VR
+                    🥽 ENTER VR (SBS BARRELS)
                 </button>
             </div>
         </header>
 
-        <!-- Bottom Player Controls Bar -->
         <footer class="hud-footer hud-interactive">
             <!-- Progress / Time Scrub Bar -->
             <div class="scrub-container">
@@ -236,7 +126,7 @@
             <div class="controls-row">
                 <div class="left-controls">
                     <!-- Play / Pause -->
-                    <button id="btn-play" class="btn-primary">⏸ Pause</button>
+                    <button id="btn-play" class="btn-primary">▶ Play</button>
 
                     <!-- Volume Control -->
                     <div class="volume-group">
@@ -246,36 +136,22 @@
                 </div>
 
                 <div class="right-controls">
-                    <!-- File Picker Input (Supports MP4, MKV, AVI, MOV, WEBM, M4V, TS, FLV, OGV, WMV, M3U8) -->
-                    <label class="btn-secondary" style="cursor: pointer;" title="Supports MP4, MKV, AVI, MOV, WEBM, M4V, TS, FLV, M3U8">
+                    <!-- File Picker Input -->
+                    <label class="btn-secondary" style="cursor: pointer;" title="Open local video file">
                         📂 Open Video File
                         <input type="file" id="video-file-input" accept="video/*, .mp4, .mkv, .avi, .mov, .webm, .m4v, .3gp, .ts, .flv, .ogv, .wmv, .m3u8, .mpd" style="display: none;">
                     </label>
 
-                    <!-- Stream / Video URL Input Modal Button -->
-                    <button id="btn-url-stream" class="btn-secondary" title="Play Video URL or HLS Stream">
+                    <!-- Stream URL Input -->
+                    <button id="btn-url-stream" class="btn-secondary" title="Play Video URL or Stream">
                         🔗 Stream URL
                     </button>
 
-                    <!-- Screen Size Select -->
-                    <select id="select-screen-size" class="control-select">
-                        <option value="standard">Standard 16:9</option>
-                        <option value="imax" selected>IMAX Curved</option>
-                        <option value="ultrawide">Ultra-Wide 21:9</option>
-                    </select>
-
-                    <!-- Theater Theme Select -->
-                    <select id="select-theme" class="control-select">
-                        <option value="grand-velvet" selected>Grand Velvet Auditorium</option>
-                        <option value="cyberpunk">Cyberpunk VR Lounge</option>
-                        <option value="cozy-home">Cozy Home Theater</option>
-                    </select>
-
-                    <!-- 3D Stereo Mode Select -->
+                    <!-- 3D Stereo Video Mode (Mono, Side-by-Side 3D, Over-Under 3D) -->
                     <select id="select-stereo-mode" class="control-select">
-                        <option value="mono" selected>2D Standard Flat</option>
-                        <option value="sbs">3D Side-by-Side (SBS)</option>
-                        <option value="ou">3D Over-Under (OU)</option>
+                        <option value="mono" selected>2D Standard</option>
+                        <option value="sbs">3D Side-by-Side (SBS Video)</option>
+                        <option value="ou">3D Over-Under (OU Video)</option>
                     </select>
                 </div>
             </div>
