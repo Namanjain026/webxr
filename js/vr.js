@@ -2,6 +2,7 @@
  * Two-Eye VR Scissor Renderer & Cinema Scene Manager
  * Features:
  * - Scissor dual-viewport stereo rendering (Left Eye / Right Eye)
+ * - SVG Barrel Vignette Mask synchronization with lens calibration
  * - Independent 3D screen planes (Zoom, Distance, Position X/Y)
  * - Independent lens mask & viewport alignment (Mask Width, Offsets, Center Gap)
  * - 2D and Side-by-Side (SBS 3D) UV cropping
@@ -96,25 +97,25 @@ window.VRCinemaVR = {
 
         // Dark VR Cinema gradient background
         const grad = ctx.createRadialGradient(960, 540, 100, 960, 540, 1000);
-        grad.addColorStop(0, '#1a1c29');
-        grad.addColorStop(1, '#08090f');
+        grad.addColorStop(0, '#1d2238');
+        grad.addColorStop(1, '#090b14');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, 1920, 1080);
 
         // Cinema Screen Frame
-        ctx.strokeStyle = 'rgba(100, 150, 255, 0.3)';
-        ctx.lineWidth = 8;
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 12;
         ctx.strokeRect(40, 40, 1840, 1000);
 
         // VR Icon & Text
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 54px sans-serif';
+        ctx.font = 'bold 58px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('🎬 VR Cinema Player', 960, 480);
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.font = '32px sans-serif';
-        ctx.fillText('Tap ☰ Menu to load a Local Video, Image, or YouTube Stream', 960, 560);
+        ctx.fillStyle = '#00f0ff';
+        ctx.font = 'bold 36px sans-serif';
+        ctx.fillText('Tap ☰ Menu to select a Local Video, Image, or YouTube URL', 960, 570);
 
         const tex = new THREE.CanvasTexture(canvas);
         tex.colorSpace = THREE.SRGBColorSpace;
@@ -207,12 +208,6 @@ window.VRCinemaVR = {
         this.screenMeshRight = new THREE.Mesh(planeGeo.clone(), this.screenMaterialRight);
         this.screenMeshRight.position.set(0, 0, -4.0);
         this.scene.add(this.screenMeshRight);
-
-        // Render layers: 1 for Left Eye, 2 for Right Eye
-        this.screenMeshLeft.layers.set(1);
-        this.screenMeshRight.layers.set(2);
-        this.cameraLeft.layers.enable(1);
-        this.cameraRight.layers.enable(2);
     },
 
     setMediaTexture: function (texture) {
@@ -271,6 +266,44 @@ window.VRCinemaVR = {
         this.screenMeshRight.position.set(posX, posY, dist);
     },
 
+    updateSVGBarrelMask: function (settings) {
+        const leftEye = document.getElementById('mask-left-eye');
+        const rightEye = document.getElementById('mask-right-eye');
+
+        if (!leftEye || !rightEye) return;
+
+        const leftScale = settings.leftMaskWidth || 1.0;
+        const rightScale = settings.rightMaskWidth || 1.0;
+
+        const windowW = window.innerWidth || 1;
+        const windowH = window.innerHeight || 1;
+
+        const centerGap = ((settings.centerGap || 0) / windowW) * 100;
+        const leftXShift = ((settings.leftXOffset || 0) / windowW) * 100;
+        const rightXShift = ((settings.rightXOffset || 0) / windowW) * 100;
+        const yShift = ((settings.yOffset || 0) / windowH) * 100;
+
+        // Base center X for Left Eye = 25%, Right Eye = 75%
+        const leftCX = 25 - (centerGap / 4) + leftXShift;
+        const rightCX = 75 + (centerGap / 4) + rightXShift;
+        const cy = 50 + yShift;
+
+        // Base radii: rx = 22%, ry = 42%
+        const leftRX = 22 * leftScale;
+        const rightRX = 22 * rightScale;
+        const ry = 42;
+
+        leftEye.setAttribute('cx', `${leftCX}%`);
+        leftEye.setAttribute('cy', `${cy}%`);
+        leftEye.setAttribute('rx', `${leftRX}%`);
+        leftEye.setAttribute('ry', `${ry}%`);
+
+        rightEye.setAttribute('cx', `${rightCX}%`);
+        rightEye.setAttribute('cy', `${cy}%`);
+        rightEye.setAttribute('rx', `${rightRX}%`);
+        rightEye.setAttribute('ry', `${ry}%`);
+    },
+
     render: function (settings) {
         const width = window.innerWidth;
         const height = window.innerHeight;
@@ -278,35 +311,25 @@ window.VRCinemaVR = {
         // Update Screen Planes & Materials
         this.updateScreenGeometryAndUVs(settings);
 
+        // Synchronize SVG Barrel Vignette Mask with calibration settings
+        this.updateSVGBarrelMask(settings);
+
         // Apply Head Tracking Gyro to Cameras
         if (window.VRCinemaGyro) {
             window.VRCinemaGyro.applyToCamera(this.cameraLeft);
             window.VRCinemaGyro.applyToCamera(this.cameraRight);
         }
 
-        // Two-Eye Viewport Calculations (with Center Gap & Offsets)
         const halfWidth = width / 2;
-        const centerGap = settings.centerGap || 0;
-        const yOffset = settings.yOffset || 0;
-
-        // Left Eye Viewport & Scissor Box
-        const leftMaskW = (halfWidth - (centerGap / 2)) * (settings.leftMaskWidth || 1.0);
-        const leftX = (settings.leftXOffset || 0) + ((halfWidth - leftMaskW) / 2);
-        const leftY = yOffset;
-
-        // Right Eye Viewport & Scissor Box
-        const rightMaskW = (halfWidth - (centerGap / 2)) * (settings.rightMaskWidth || 1.0);
-        const rightX = halfWidth + (centerGap / 2) + (settings.rightXOffset || 0) + ((halfWidth - rightMaskW) / 2);
-        const rightY = yOffset;
 
         // 1. Render Left Eye View
-        this.renderer.setViewport(leftX, leftY, leftMaskW, height);
-        this.renderer.setScissor(leftX, leftY, leftMaskW, height);
+        this.renderer.setViewport(0, 0, halfWidth, height);
+        this.renderer.setScissor(0, 0, halfWidth, height);
         this.renderer.render(this.scene, this.cameraLeft);
 
         // 2. Render Right Eye View
-        this.renderer.setViewport(rightX, rightY, rightMaskW, height);
-        this.renderer.setScissor(rightX, rightY, rightMaskW, height);
+        this.renderer.setViewport(halfWidth, 0, halfWidth, height);
+        this.renderer.setScissor(halfWidth, 0, halfWidth, height);
         this.renderer.render(this.scene, this.cameraRight);
     },
 
