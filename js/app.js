@@ -11,6 +11,7 @@ window.CinemaApp = {
     audioCtx: null,
     pannerNode: null,
     screenGlowLight: null,
+    hlsInstance: null,
     isPlaying: false,
     useDemoGenerator: true,
     animFrameId: null,
@@ -147,6 +148,15 @@ window.CinemaApp = {
             }
         });
 
+        // URL / Stream Link Input Button
+        const btnUrlStream = document.getElementById('btn-url-stream');
+        if (btnUrlStream) {
+            btnUrlStream.addEventListener('click', () => {
+                const url = prompt('Enter Direct Video or HLS Stream URL (.mp4, .mkv, .webm, .m3u8):');
+                if (url) this.loadVideoUrl(url);
+            });
+        }
+
         // Screen Size Selector
         const sizeSelect = document.getElementById('select-screen-size');
         sizeSelect.addEventListener('change', (e) => this.setScreenSize(e.target.value));
@@ -253,18 +263,77 @@ window.CinemaApp = {
         if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
         this.useDemoGenerator = false;
 
+        if (this.hlsInstance) {
+            this.hlsInstance.destroy();
+            this.hlsInstance = null;
+        }
+
+        const fileName = file.name.toLowerCase();
         const objectUrl = URL.createObjectURL(file);
-        this.video.src = objectUrl;
-        this.video.load();
+
+        if (fileName.endsWith('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
+            this.hlsInstance = new Hls();
+            this.hlsInstance.loadSource(objectUrl);
+            this.hlsInstance.attachMedia(this.video);
+            this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                this.video.play();
+                this.isPlaying = true;
+                document.getElementById('btn-play').innerText = '⏸ Pause';
+            });
+        } else {
+            this.video.src = objectUrl;
+            this.video.load();
+            this.video.play().then(() => {
+                this.isPlaying = true;
+                document.getElementById('btn-play').innerText = '⏸ Pause';
+            }).catch(err => {
+                console.log('Video play trigger:', err);
+                this.isPlaying = false;
+                document.getElementById('btn-play').innerText = '▶ Play';
+            });
+        }
         
         // Re-point screen texture to HTML5 video element
         const screenEl = document.getElementById('cinema-screen');
-        screenEl.setAttribute('src', '#cinema-video');
+        if (screenEl) screenEl.setAttribute('src', '#cinema-video');
+    },
 
-        this.video.play().then(() => {
-            this.isPlaying = true;
-            document.getElementById('btn-play').innerText = '⏸ Pause';
-        }).catch(err => console.log('Video autoplay blocked:', err));
+    loadVideoUrl: function (urlStr) {
+        if (!urlStr || !urlStr.trim()) return;
+        urlStr = urlStr.trim();
+
+        if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
+        this.useDemoGenerator = false;
+
+        if (this.hlsInstance) {
+            this.hlsInstance.destroy();
+            this.hlsInstance = null;
+        }
+
+        if (urlStr.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
+            this.hlsInstance = new Hls();
+            this.hlsInstance.loadSource(urlStr);
+            this.hlsInstance.attachMedia(this.video);
+            this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                this.video.play();
+                this.isPlaying = true;
+                document.getElementById('btn-play').innerText = '⏸ Pause';
+            });
+        } else {
+            this.video.src = urlStr;
+            this.video.load();
+            this.video.play().then(() => {
+                this.isPlaying = true;
+                document.getElementById('btn-play').innerText = '⏸ Pause';
+            }).catch(err => {
+                console.log('Video URL play trigger:', err);
+                this.isPlaying = false;
+                document.getElementById('btn-play').innerText = '▶ Play';
+            });
+        }
+
+        const screenEl = document.getElementById('cinema-screen');
+        if (screenEl) screenEl.setAttribute('src', '#cinema-video');
     },
 
     seekDelta: function (seconds) {

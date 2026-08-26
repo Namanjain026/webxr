@@ -16,6 +16,9 @@
     <!-- A-Frame 1.6.0 WebXR & Cardboard Engine -->
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
 
+    <!-- HLS.js for Streaming & Advanced Video Format Decoding -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
     <!-- Custom Scripts -->
     <script src="js/textures.js"></script>
     <script src="js/stereo-shader.js"></script>
@@ -243,11 +246,16 @@
                 </div>
 
                 <div class="right-controls">
-                    <!-- File Picker Input -->
-                    <label class="btn-secondary" style="cursor: pointer;">
-                        📂 Choose Video File
-                        <input type="file" id="video-file-input" accept="video/*" style="display: none;">
+                    <!-- File Picker Input (Supports MP4, MKV, AVI, MOV, WEBM, M4V, TS, FLV, OGV, WMV, M3U8) -->
+                    <label class="btn-secondary" style="cursor: pointer;" title="Supports MP4, MKV, AVI, MOV, WEBM, M4V, TS, FLV, M3U8">
+                        📂 Open Video File
+                        <input type="file" id="video-file-input" accept="video/*, .mp4, .mkv, .avi, .mov, .webm, .m4v, .3gp, .ts, .flv, .ogv, .wmv, .m3u8, .mpd" style="display: none;">
                     </label>
+
+                    <!-- Stream / Video URL Input Modal Button -->
+                    <button id="btn-url-stream" class="btn-secondary" title="Play Video URL or HLS Stream">
+                        🔗 Stream URL
+                    </button>
 
                     <!-- Screen Size Select -->
                     <select id="select-screen-size" class="control-select">
