@@ -29,7 +29,7 @@
 <body>
 
     <!-- Video Element (Source for Cinema Screen Texture & Audio) -->
-    <video id="cinema-video" crossorigin="anonymous" playsinline webkit-playsinline loop muted style="display:none;"></video>
+    <video id="cinema-video" crossorigin="anonymous" playsinline webkit-playsinline style="position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -9999;"></video>
 
     <!-- A-Frame 3D Scene Container -->
     <a-scene id="cinema-scene" embedded vr-mode-ui="enabled: true" loading-screen="enabled: false" renderer="antialias: true; colorManagement: true;">
@@ -73,7 +73,7 @@
             <!-- Curved Video Mesh -->
             <a-curvedvideo id="cinema-screen" 
                             class="raycastable"
-                            src="#cinema-video" 
+                            src="#demo-canvas-asset" 
                             radius="10" 
                             theta-length="100" 
                             height="5.8" 

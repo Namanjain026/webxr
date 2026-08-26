@@ -1,22 +1,17 @@
 /**
  * Main WebXR Cinema Application Engine
  * Handles Video Playback, Canvas Test Generator, Dynamic Screen Glow,
- * Spatial Audio, 2D HUD Sync, and 3D VR Menu interactions.
+ * 2D HUD Sync, and 3D VR Menu interactions.
  */
 
 window.CinemaApp = {
     video: null,
     canvasGen: null,
     canvasCtx: null,
-    audioCtx: null,
-    pannerNode: null,
     screenGlowLight: null,
     hlsInstance: null,
-    videoTexture: null,
-    demoTexture: null,
     isPlaying: false,
     useDemoGenerator: true,
-    animFrameId: null,
     demoAngle: 0,
     ball: { x: 640, y: 360, vx: 5, vy: 4, r: 40, color: '#00f0ff' },
 
@@ -27,41 +22,28 @@ window.CinemaApp = {
         this.setupDemoCanvasGenerator();
         this.setupEventListeners();
         this.setupDynamicScreenGlow();
-        this.setupSpatialAudio();
         this.applyTheme('grand-velvet');
 
-        // Global gesture listener to resume AudioContext on user interaction
-        const unlockAudio = () => {
-            this.resumeAudioContext();
-        };
-        document.addEventListener('click', unlockAudio);
-        document.addEventListener('touchstart', unlockAudio);
-
-        // Start unified render loop
+        // Start initial screen setup & unified render loop
         this.startRenderLoop();
     },
 
-    resumeAudioContext: function () {
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume().then(() => {
-                console.log('[Spatial Audio] Context un-suspended successfully.');
-            }).catch(e => console.warn('[Spatial Audio] Resume error:', e));
-        }
-    },
-
-    getThreeLib: function () {
-        return window.THREE || (typeof AFRAME !== 'undefined' ? AFRAME.THREE : null);
-    },
-
     setupDemoCanvasGenerator: function () {
-        this.canvasGen = document.createElement('canvas');
-        this.canvasGen.width = 1280;
-        this.canvasGen.height = 720;
+        this.canvasGen = document.getElementById('demo-canvas-asset');
+        if (!this.canvasGen) {
+            this.canvasGen = document.createElement('canvas');
+            this.canvasGen.id = 'demo-canvas-asset';
+            this.canvasGen.width = 1280;
+            this.canvasGen.height = 720;
+            const assets = document.querySelector('a-assets');
+            if (assets) assets.appendChild(this.canvasGen);
+        }
         this.canvasCtx = this.canvasGen.getContext('2d');
         this.ball = { x: 640, y: 360, vx: 5, vy: 4, r: 40, color: '#00f0ff' };
     },
 
     renderDemoFrame: function () {
+        if (!this.canvasCtx) return;
         const ctx = this.canvasCtx;
         const w = this.canvasGen.width;
         const h = this.canvasGen.height;
@@ -123,34 +105,25 @@ window.CinemaApp = {
         ctx.fillText(timeStr, w / 2, h / 2 + 90);
     },
 
-    attachScreenTexture: function () {
-        const THREE_LIB = this.getThreeLib();
+    bindVideoToScreen: function () {
         const screenEl = document.getElementById('cinema-screen');
-        if (!screenEl || !screenEl.object3DMap || !screenEl.object3DMap.mesh) return;
+        if (!screenEl) return;
 
-        const mesh = screenEl.object3DMap.mesh;
-        if (!mesh.material) return;
+        // Force A-Frame material component update
+        screenEl.removeAttribute('src');
+        screenEl.setAttribute('src', '#cinema-video');
 
-        if (this.useDemoGenerator) {
-            if (!this.demoTexture && THREE_LIB) {
-                this.demoTexture = new THREE_LIB.CanvasTexture(this.canvasGen);
-                this.demoTexture.colorSpace = THREE_LIB.SRGBColorSpace || THREE_LIB.sRGBEncoding;
-            }
-            if (this.demoTexture) {
-                mesh.material.map = this.demoTexture;
+        const THREE_LIB = window.THREE || (typeof AFRAME !== 'undefined' ? AFRAME.THREE : null);
+        if (screenEl.object3DMap && screenEl.object3DMap.mesh && THREE_LIB && this.video) {
+            const mesh = screenEl.object3DMap.mesh;
+            if (mesh.material) {
+                const videoTexture = new THREE_LIB.VideoTexture(this.video);
+                videoTexture.colorSpace = THREE_LIB.SRGBColorSpace || THREE_LIB.sRGBEncoding;
+                videoTexture.minFilter = THREE_LIB.LinearFilter;
+                videoTexture.magFilter = THREE_LIB.LinearFilter;
+                videoTexture.generateMipmaps = false;
+                mesh.material.map = videoTexture;
                 mesh.material.needsUpdate = true;
-            }
-        } else {
-            if (THREE_LIB && this.video) {
-                this.videoTexture = new THREE_LIB.VideoTexture(this.video);
-                this.videoTexture.colorSpace = THREE_LIB.SRGBColorSpace || THREE_LIB.sRGBEncoding;
-                this.videoTexture.minFilter = THREE_LIB.LinearFilter;
-                this.videoTexture.magFilter = THREE_LIB.LinearFilter;
-                this.videoTexture.generateMipmaps = false;
-                mesh.material.map = this.videoTexture;
-                mesh.material.needsUpdate = true;
-            } else {
-                screenEl.setAttribute('src', '#cinema-video');
             }
         }
     },
@@ -159,19 +132,24 @@ window.CinemaApp = {
         const self = this;
 
         function animate() {
+            const screenEl = document.getElementById('cinema-screen');
+
             if (self.useDemoGenerator) {
                 self.renderDemoFrame();
-                if (self.demoTexture) {
-                    self.demoTexture.needsUpdate = true;
-                } else {
-                    self.attachScreenTexture();
+
+                if (screenEl && screenEl.components && screenEl.components.material) {
+                    const mat = screenEl.components.material.material;
+                    if (mat && mat.map) {
+                        mat.map.needsUpdate = true;
+                    }
                 }
             } else {
                 // Real Video Mode
-                if (self.videoTexture) {
-                    self.videoTexture.needsUpdate = true;
-                } else {
-                    self.attachScreenTexture();
+                if (screenEl && screenEl.components && screenEl.components.material) {
+                    const mat = screenEl.components.material.material;
+                    if (mat && mat.map) {
+                        mat.map.needsUpdate = true;
+                    }
                 }
 
                 // Update HUD timer & scrub bar smoothly
@@ -301,7 +279,6 @@ window.CinemaApp = {
     },
 
     togglePlay: function () {
-        this.resumeAudioContext();
         const playBtn = document.getElementById('btn-play');
         const vrPlayText = document.getElementById('vr-play-text');
 
@@ -309,6 +286,7 @@ window.CinemaApp = {
             this.isPlaying = !this.isPlaying;
         } else {
             if (this.video.paused) {
+                this.video.muted = false;
                 this.video.play();
                 this.isPlaying = true;
             } else {
@@ -322,7 +300,6 @@ window.CinemaApp = {
     },
 
     loadLocalVideoFile: function (file) {
-        this.resumeAudioContext();
         this.useDemoGenerator = false;
 
         if (this.hlsInstance) {
@@ -341,12 +318,12 @@ window.CinemaApp = {
             this.hlsInstance.loadSource(objectUrl);
             this.hlsInstance.attachMedia(this.video);
             this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                this.startPlaybackAndAttachTexture();
+                this.startVideoPlayback();
             });
         } else {
             this.video.src = objectUrl;
             this.video.load();
-            this.startPlaybackAndAttachTexture();
+            this.startVideoPlayback();
         }
     },
 
@@ -354,7 +331,6 @@ window.CinemaApp = {
         if (!urlStr || !urlStr.trim()) return;
         urlStr = urlStr.trim();
 
-        this.resumeAudioContext();
         this.useDemoGenerator = false;
 
         if (this.hlsInstance) {
@@ -370,31 +346,31 @@ window.CinemaApp = {
             this.hlsInstance.loadSource(urlStr);
             this.hlsInstance.attachMedia(this.video);
             this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                this.startPlaybackAndAttachTexture();
+                this.startVideoPlayback();
             });
         } else {
             this.video.src = urlStr;
             this.video.load();
-            this.startPlaybackAndAttachTexture();
+            this.startVideoPlayback();
         }
     },
 
-    startPlaybackAndAttachTexture: function () {
-        this.attachScreenTexture();
+    startVideoPlayback: function () {
+        this.bindVideoToScreen();
 
         const playPromise = this.video.play();
         if (playPromise !== undefined) {
             playPromise.then(() => {
                 this.isPlaying = true;
                 this.updatePlayButtonUI(true);
-                this.attachScreenTexture();
+                this.bindVideoToScreen();
             }).catch(err => {
                 console.warn('[Video Engine] Unmuted play blocked by browser, attempting muted playback:', err);
                 this.video.muted = true;
                 this.video.play().then(() => {
                     this.isPlaying = true;
                     this.updatePlayButtonUI(true);
-                    this.attachScreenTexture();
+                    this.bindVideoToScreen();
                 }).catch(e => {
                     console.error('[Video Engine] Video play failed:', e);
                     this.isPlaying = false;
@@ -512,31 +488,6 @@ window.CinemaApp = {
                 // Ignore cross-origin canvas taint errors if streaming cross-domain video
             }
         }, 100);
-    },
-
-    setupSpatialAudio: function () {
-        // Web Audio API spatial panner attached to screen position
-        try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioCtx = new AudioContext();
-            
-            const source = this.audioCtx.createMediaElementSource(this.video);
-            this.pannerNode = this.audioCtx.createPanner();
-            
-            this.pannerNode.panningModel = 'HRTF';
-            this.pannerNode.distanceModel = 'inverse';
-            this.pannerNode.refDistance = 1;
-            this.pannerNode.maxDistance = 10000;
-            this.pannerNode.rolloffFactor = 1;
-            
-            // Screen 3D position (0, 3, -8)
-            this.pannerNode.setPosition(0, 3, -8);
-            
-            source.connect(this.pannerNode);
-            this.pannerNode.connect(this.audioCtx.destination);
-        } catch (e) {
-            console.log('[Spatial Audio] Initialized with standard audio pipeline fallback.');
-        }
     },
 
     formatTime: function (sec) {
