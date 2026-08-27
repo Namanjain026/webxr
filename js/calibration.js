@@ -23,8 +23,10 @@ window.VRCinemaCalibration = {
             { id: 'cal-screen-offset-x', key: 'screenOffsetX', parse: parseFloat },
             { id: 'cal-screen-offset-y', key: 'screenOffsetY', parse: parseFloat },
             { id: 'cal-gyro-sensitivity', key: 'gyroSensitivity', parse: parseFloat },
+            { id: 'cal-mask-separation', key: 'maskSeparation', parse: parseFloat },
             { id: 'hud-screen-scale', key: 'screenScale', parse: parseFloat },
-            { id: 'hud-screen-distance', key: 'screenDistance', parse: parseFloat }
+            { id: 'hud-screen-distance', key: 'screenDistance', parse: parseFloat },
+            { id: 'hud-mask-separation', key: 'maskSeparation', parse: parseFloat }
         ];
 
         bindings.forEach(binding => {
@@ -96,8 +98,10 @@ window.VRCinemaCalibration = {
             { id: 'cal-screen-offset-x', key: 'screenOffsetX' },
             { id: 'cal-screen-offset-y', key: 'screenOffsetY' },
             { id: 'cal-gyro-sensitivity', key: 'gyroSensitivity' },
+            { id: 'cal-mask-separation', key: 'maskSeparation' },
             { id: 'hud-screen-scale', key: 'screenScale' },
-            { id: 'hud-screen-distance', key: 'screenDistance' }
+            { id: 'hud-screen-distance', key: 'screenDistance' },
+            { id: 'hud-mask-separation', key: 'maskSeparation' }
         ];
 
         bindings.forEach(binding => {

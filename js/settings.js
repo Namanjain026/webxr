@@ -20,6 +20,7 @@ window.VRCinemaSettings = {
         rightXOffset: 0,           // Right eye mask X shift (px)
         yOffset: 0,                // Vertical mask shift (px)
         centerGap: 0,              // Separation between eye viewports (px)
+        maskSeparation: 1.0,       // Dark circles lens separation scale (0.0 to 2.0, default 1.0)
         gyroEnabled: true,         // Gyroscope head tracking active
         gyroSensitivity: 1.0,      // Gyro multiplier
         showCalibrationGrid: false // Test grid / crosshair pattern

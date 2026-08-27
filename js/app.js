@@ -221,6 +221,7 @@ window.VRCinemaApp = {
                 settings.set('screenDistance', 4.0);
                 settings.set('screenOffsetX', 0);
                 settings.set('screenOffsetY', 0);
+                settings.set('maskSeparation', 1.0);
                 window.VRCinemaCalibration.updateUIFromSettings();
                 window.VRCinemaCalibration.showToast('Zoom & Position Reset');
             });
@@ -272,6 +273,7 @@ window.VRCinemaApp = {
                     window.VRCinemaSettings.set('screenDistance', 4.0);
                     window.VRCinemaSettings.set('screenOffsetX', 0);
                     window.VRCinemaSettings.set('screenOffsetY', 0);
+                    window.VRCinemaSettings.set('maskSeparation', 1.0);
                     window.VRCinemaCalibration.updateUIFromSettings();
                     window.VRCinemaCalibration.showToast('Zoom & Position Reset');
                 }

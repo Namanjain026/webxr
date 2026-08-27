@@ -274,6 +274,7 @@ window.VRCinemaVR = {
 
         const leftScale = settings.leftMaskWidth || 1.0;
         const rightScale = settings.rightMaskWidth || 1.0;
+        const maskSep = (settings.maskSeparation !== undefined) ? settings.maskSeparation : 1.0;
 
         const windowW = window.innerWidth || 1;
         const windowH = window.innerHeight || 1;
@@ -283,9 +284,10 @@ window.VRCinemaVR = {
         const rightXShift = ((settings.rightXOffset || 0) / windowW) * 100;
         const yShift = ((settings.yOffset || 0) / windowH) * 100;
 
-        // Base center X for Left Eye = 25%, Right Eye = 75%
-        const leftCX = 25 - (centerGap / 4) + leftXShift;
-        const rightCX = 75 + (centerGap / 4) + rightXShift;
+        // Base center X: Left Eye = 25%, Right Eye = 75% (midpoint = 50%)
+        // Scaled by maskSeparation: 1.0 = default, < 1.0 = closer, > 1.0 = farther apart
+        const leftCX = 50 - (25 * maskSep) - (centerGap / 4) + leftXShift;
+        const rightCX = 50 + (25 * maskSep) + (centerGap / 4) + rightXShift;
         const cy = 50 + yShift;
 
         // Base radii: rx = 22%, ry = 42%
