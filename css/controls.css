@@ -341,3 +341,29 @@ input[type="range"] {
     font-size: 13px;
     cursor: pointer;
 }
+
+/* Quick Zoom Preset Buttons */
+.zoom-preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+}
+
+.btn-action-sm {
+    padding: 8px 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.btn-action-sm:hover {
+    background: rgba(0, 240, 255, 0.2);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}

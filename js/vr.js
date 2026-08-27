@@ -184,8 +184,8 @@ window.VRCinemaVR = {
     },
 
     createCinemaScreens: function () {
-        // Plane Geometry: 16:9 aspect ratio (16m wide x 9m high)
-        const planeGeo = new THREE.PlaneGeometry(16, 9);
+        // Plane Geometry: 16:9 aspect ratio (7.11m wide x 4.0m high, frames nicely within VR FOV)
+        const planeGeo = new THREE.PlaneGeometry(7.11, 4.0);
 
         // Left Screen Material
         this.screenMaterialLeft = new THREE.MeshBasicMaterial({

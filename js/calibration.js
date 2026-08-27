@@ -22,7 +22,9 @@ window.VRCinemaCalibration = {
             { id: 'cal-screen-distance', key: 'screenDistance', parse: parseFloat },
             { id: 'cal-screen-offset-x', key: 'screenOffsetX', parse: parseFloat },
             { id: 'cal-screen-offset-y', key: 'screenOffsetY', parse: parseFloat },
-            { id: 'cal-gyro-sensitivity', key: 'gyroSensitivity', parse: parseFloat }
+            { id: 'cal-gyro-sensitivity', key: 'gyroSensitivity', parse: parseFloat },
+            { id: 'hud-screen-scale', key: 'screenScale', parse: parseFloat },
+            { id: 'hud-screen-distance', key: 'screenDistance', parse: parseFloat }
         ];
 
         bindings.forEach(binding => {
@@ -44,6 +46,9 @@ window.VRCinemaCalibration = {
                     if (binding.key === 'gyroSensitivity' && window.VRCinemaGyro) {
                         window.VRCinemaGyro.sensitivity = parsedVal;
                     }
+
+                    // Keep sister slider synced across HUD and modal
+                    this.updateUIFromSettings();
                 });
             }
         });
@@ -90,7 +95,9 @@ window.VRCinemaCalibration = {
             { id: 'cal-screen-distance', key: 'screenDistance' },
             { id: 'cal-screen-offset-x', key: 'screenOffsetX' },
             { id: 'cal-screen-offset-y', key: 'screenOffsetY' },
-            { id: 'cal-gyro-sensitivity', key: 'gyroSensitivity' }
+            { id: 'cal-gyro-sensitivity', key: 'gyroSensitivity' },
+            { id: 'hud-screen-scale', key: 'screenScale' },
+            { id: 'hud-screen-distance', key: 'screenDistance' }
         ];
 
         bindings.forEach(binding => {
