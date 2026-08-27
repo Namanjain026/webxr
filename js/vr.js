@@ -256,14 +256,19 @@ window.VRCinemaVR = {
         const dist = -(settings.screenDistance || 4.0);
         const posX = settings.screenOffsetX || 0;
         const posY = settings.screenOffsetY || 0;
+        const maskSep = (settings && settings.maskSeparation !== undefined && !isNaN(settings.maskSeparation)) ? settings.maskSeparation : 1.0;
 
-        // Left Eye Screen Transform
+        // Calculate 3D screen X shift to match barrel mask circles separation
+        const distanceFactor = Math.abs(dist) / 4.0;
+        const separationXOffset = (1.0 - maskSep) * 2.5 * scale * distanceFactor;
+
+        // Left Eye Screen Transform (shifts right towards center when maskSep < 1.0)
         this.screenMeshLeft.scale.set(scale, scale, 1);
-        this.screenMeshLeft.position.set(posX, posY, dist);
+        this.screenMeshLeft.position.set(posX + separationXOffset, posY, dist);
 
-        // Right Eye Screen Transform
+        // Right Eye Screen Transform (shifts left towards center when maskSep < 1.0)
         this.screenMeshRight.scale.set(scale, scale, 1);
-        this.screenMeshRight.position.set(posX, posY, dist);
+        this.screenMeshRight.position.set(posX - separationXOffset, posY, dist);
     },
 
     updateSVGBarrelMask: function (settings) {
