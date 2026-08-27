@@ -199,14 +199,18 @@ window.VRCinemaVR = {
             side: THREE.DoubleSide
         });
 
-        // Left Eye Screen Mesh
+        // Left Eye Screen Mesh (Dedicated to Layer 1)
         this.screenMeshLeft = new THREE.Mesh(planeGeo, this.screenMaterialLeft);
         this.screenMeshLeft.position.set(0, 0, -4.0);
+        this.screenMeshLeft.layers.set(1);
+        this.cameraLeft.layers.set(1);
         this.scene.add(this.screenMeshLeft);
 
-        // Right Eye Screen Mesh
+        // Right Eye Screen Mesh (Dedicated to Layer 2)
         this.screenMeshRight = new THREE.Mesh(planeGeo.clone(), this.screenMaterialRight);
         this.screenMeshRight.position.set(0, 0, -4.0);
+        this.screenMeshRight.layers.set(2);
+        this.cameraRight.layers.set(2);
         this.scene.add(this.screenMeshRight);
     },
 
@@ -329,15 +333,23 @@ window.VRCinemaVR = {
 
         const halfWidth = width / 2;
 
-        // 1. Render Left Eye View
+        // 1. Render Left Eye View (Left screen plane only)
+        this.screenMeshLeft.visible = true;
+        this.screenMeshRight.visible = false;
         this.renderer.setViewport(0, 0, halfWidth, height);
         this.renderer.setScissor(0, 0, halfWidth, height);
         this.renderer.render(this.scene, this.cameraLeft);
 
-        // 2. Render Right Eye View
+        // 2. Render Right Eye View (Right screen plane only)
+        this.screenMeshLeft.visible = false;
+        this.screenMeshRight.visible = true;
         this.renderer.setViewport(halfWidth, 0, halfWidth, height);
         this.renderer.setScissor(halfWidth, 0, halfWidth, height);
         this.renderer.render(this.scene, this.cameraRight);
+
+        // Restore visibility
+        this.screenMeshLeft.visible = true;
+        this.screenMeshRight.visible = true;
     },
 
     onWindowResize: function () {
