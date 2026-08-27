@@ -183,9 +183,29 @@ window.VRCinemaVR = {
         return tex;
     },
 
+    createCurvedScreenGeometry: function (width, height, radius = 6.0, segments = 48) {
+        const thetaLength = width / radius;
+        const thetaStart = (Math.PI * 1.5) - (thetaLength / 2);
+
+        const geo = new THREE.CylinderGeometry(
+            radius,        // radiusTop
+            radius,        // radiusBottom
+            height,        // height
+            segments,      // radialSegments (smooth curve)
+            1,             // heightSegments
+            true,          // openEnded
+            thetaStart,    // thetaStart
+            thetaLength    // thetaLength
+        );
+
+        // Position geometry origin so apex is at z = 0, edges curve forward towards viewer (+Z)
+        geo.translate(0, 0, radius);
+        return geo;
+    },
+
     createCinemaScreens: function () {
-        // Plane Geometry: 16:9 aspect ratio (7.11m wide x 4.0m high, frames nicely within VR FOV)
-        const planeGeo = new THREE.PlaneGeometry(7.11, 4.0);
+        // Curved IMAX Cinema Screen Geometry (7.11m wide x 4.0m high, 6.0m curve radius)
+        const curvedGeo = this.createCurvedScreenGeometry(7.11, 4.0, 6.0, 48);
 
         // Left Screen Material
         this.screenMaterialLeft = new THREE.MeshBasicMaterial({
@@ -200,14 +220,14 @@ window.VRCinemaVR = {
         });
 
         // Left Eye Screen Mesh (Dedicated to Layer 1)
-        this.screenMeshLeft = new THREE.Mesh(planeGeo, this.screenMaterialLeft);
+        this.screenMeshLeft = new THREE.Mesh(curvedGeo, this.screenMaterialLeft);
         this.screenMeshLeft.position.set(0, 0, -4.0);
         this.screenMeshLeft.layers.set(1);
         this.cameraLeft.layers.set(1);
         this.scene.add(this.screenMeshLeft);
 
         // Right Eye Screen Mesh (Dedicated to Layer 2)
-        this.screenMeshRight = new THREE.Mesh(planeGeo.clone(), this.screenMaterialRight);
+        this.screenMeshRight = new THREE.Mesh(curvedGeo.clone(), this.screenMaterialRight);
         this.screenMeshRight.position.set(0, 0, -4.0);
         this.screenMeshRight.layers.set(2);
         this.cameraRight.layers.set(2);
