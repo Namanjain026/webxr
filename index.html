@@ -22,15 +22,15 @@
 
         <!-- SVG Barrel Lens Vignette Mask Overlay -->
         <div id="barrel-overlay">
-            <svg id="barrel-svg" width="100%" height="100%" preserveAspectRatio="none">
+            <svg id="barrel-svg" width="100%" height="100%" viewBox="0 0 1000 1000" preserveAspectRatio="none">
                 <defs>
                     <mask id="lens-mask">
-                        <rect width="100%" height="100%" fill="white"/>
-                        <ellipse id="mask-left-eye" cx="25%" cy="50%" rx="22%" ry="42%" fill="black"/>
-                        <ellipse id="mask-right-eye" cx="75%" cy="50%" rx="22%" ry="42%" fill="black"/>
+                        <rect width="1000" height="1000" fill="white"/>
+                        <path id="mask-left-eye" fill="black"/>
+                        <path id="mask-right-eye" fill="black"/>
                     </mask>
                 </defs>
-                <rect width="100%" height="100%" fill="#000000" mask="url(#lens-mask)"/>
+                <rect width="1000" height="1000" fill="#000000" mask="url(#lens-mask)"/>
             </svg>
         </div>
 

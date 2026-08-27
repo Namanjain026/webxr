@@ -183,19 +183,31 @@ window.VRCinemaVR = {
         return tex;
     },
 
-    createCurvedScreenGeometry: function (width, height, radius = 7.5, segmentsX = 40) {
-        const geo = new THREE.PlaneGeometry(width, height, segmentsX, 1);
+    createCurvedScreenGeometry: function (width = 7.11, height = 4.0, segmentsX = 32, segmentsY = 32) {
+        const geo = new THREE.PlaneGeometry(width, height, segmentsX, segmentsY);
         const posAttribute = geo.attributes.position;
+
+        const halfW = width / 2;
+        const halfH = height / 2;
+        const bulgeK = 0.08; // 8% outward edge curve (barrel rectangle boundary)
+        const bulgeZ = 0.35; // Outward convex 3D surface depth towards camera (+Z)
 
         for (let i = 0; i < posAttribute.count; i++) {
             const x = posAttribute.getX(i);
-            const angle = x / radius;
+            const y = posAttribute.getY(i);
 
-            // Bend X and Z to form an IMAX concave curve
-            const newX = radius * Math.sin(angle);
-            const newZ = radius * (1 - Math.cos(angle)); // Edges curve forward towards camera (+Z)
+            const u = x / halfW; // -1.0 to 1.0
+            const v = y / halfH; // -1.0 to 1.0
+
+            // 1. Outward curved edges (barrel rectangle boundary)
+            const newX = x * (1 + bulgeK * (1 - v * v));
+            const newY = y * (1 + bulgeK * (1 - u * u));
+
+            // 2. Outward convex 3D surface bulge towards camera (+Z)
+            const newZ = bulgeZ * (1 - (u * u + v * v) / 2);
 
             posAttribute.setX(i, newX);
+            posAttribute.setY(i, newY);
             posAttribute.setZ(i, newZ);
         }
 
@@ -204,8 +216,8 @@ window.VRCinemaVR = {
     },
 
     createCinemaScreens: function () {
-        // Curved IMAX Cinema Screen Geometry (7.11m wide x 4.0m high, 7.5m curve radius)
-        const curvedGeo = this.createCurvedScreenGeometry(7.11, 4.0, 7.5, 40);
+        // Outward Curved Cinema Screen Geometry (7.11m wide x 4.0m high, 32x32 segments)
+        const curvedGeo = this.createCurvedScreenGeometry(7.11, 4.0, 32, 32);
 
         // Left Screen Material
         this.screenMaterialLeft = new THREE.MeshBasicMaterial({
@@ -295,6 +307,24 @@ window.VRCinemaVR = {
         this.screenMeshRight.position.set(posX - separationXOffset, posY, dist);
     },
 
+    generateBarrelPathD: function (cx, cy, rx, ry, bulge = 45, cornerRadius = 55) {
+        const xL = cx - rx;
+        const xR = cx + rx;
+        const yT = cy - ry;
+        const yB = cy + ry;
+        const r = Math.min(cornerRadius, rx * 0.35, ry * 0.35);
+
+        return `M ${xL + r} ${yT} ` +
+               `Q ${cx} ${yT - bulge}, ${xR - r} ${yT} ` +
+               `Q ${xR} ${yT}, ${xR} ${yT + r} ` +
+               `Q ${xR + bulge} ${cy}, ${xR} ${yB - r} ` +
+               `Q ${xR} ${yB}, ${xR - r} ${yB} ` +
+               `Q ${cx} ${yB + bulge}, ${xL + r} ${yB} ` +
+               `Q ${xL} ${yB}, ${xL} ${yB - r} ` +
+               `Q ${xL - bulge} ${cy}, ${xL} ${yT + r} ` +
+               `Q ${xL} ${yT}, ${xL + r} ${yT} Z`;
+    },
+
     updateSVGBarrelMask: function (settings) {
         const leftEye = document.getElementById('mask-left-eye');
         const rightEye = document.getElementById('mask-right-eye');
@@ -308,31 +338,26 @@ window.VRCinemaVR = {
         const windowW = window.innerWidth || 1;
         const windowH = window.innerHeight || 1;
 
-        const centerGap = ((settings.centerGap || 0) / windowW) * 100;
-        const leftXShift = ((settings.leftXOffset || 0) / windowW) * 100;
-        const rightXShift = ((settings.rightXOffset || 0) / windowW) * 100;
-        const yShift = ((settings.yOffset || 0) / windowH) * 100;
+        const centerGap = ((settings.centerGap || 0) / windowW) * 1000;
+        const leftXShift = ((settings.leftXOffset || 0) / windowW) * 1000;
+        const rightXShift = ((settings.rightXOffset || 0) / windowW) * 1000;
+        const yShift = ((settings.yOffset || 0) / windowH) * 1000;
 
-        // Base center X: Left Eye = 25%, Right Eye = 75% (midpoint = 50%)
-        // Scaled by maskSeparation: 1.0 = default, < 1.0 = closer, > 1.0 = farther apart
-        const leftCX = 50 - (25 * maskSep) - (centerGap / 4) + leftXShift;
-        const rightCX = 50 + (25 * maskSep) + (centerGap / 4) + rightXShift;
-        const cy = 50 + yShift;
+        // ViewBox is 1000 x 1000
+        const leftCX = 500 - (250 * maskSep) - (centerGap / 4) + leftXShift;
+        const rightCX = 500 + (250 * maskSep) + (centerGap / 4) + rightXShift;
+        const cy = 500 + yShift;
 
-        // Base radii: rx = 22%, ry = 42%
-        const leftRX = 22 * leftScale;
-        const rightRX = 22 * rightScale;
-        const ry = 42;
+        // Base radii: rx = 220, ry = 420 (for 1000x1000 viewBox)
+        const leftRX = 220 * leftScale;
+        const rightRX = 220 * rightScale;
+        const ry = 420;
 
-        leftEye.setAttribute('cx', `${leftCX}%`);
-        leftEye.setAttribute('cy', `${cy}%`);
-        leftEye.setAttribute('rx', `${leftRX}%`);
-        leftEye.setAttribute('ry', `${ry}%`);
+        const pathLeft = this.generateBarrelPathD(leftCX, cy, leftRX, ry, 45, 55);
+        const pathRight = this.generateBarrelPathD(rightCX, cy, rightRX, ry, 45, 55);
 
-        rightEye.setAttribute('cx', `${rightCX}%`);
-        rightEye.setAttribute('cy', `${cy}%`);
-        rightEye.setAttribute('rx', `${rightRX}%`);
-        rightEye.setAttribute('ry', `${ry}%`);
+        leftEye.setAttribute('d', pathLeft);
+        rightEye.setAttribute('d', pathRight);
     },
 
     render: function (settings) {
