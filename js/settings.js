@@ -63,10 +63,15 @@ window.VRCinemaSettings = {
     },
 
     get: function (key) {
-        return this.state[key];
+        const val = this.state[key];
+        if (val === undefined || val === null || (typeof val === 'number' && isNaN(val))) {
+            return this.defaults[key] !== undefined ? this.defaults[key] : 1.0;
+        }
+        return val;
     },
 
     set: function (key, value) {
+        if (typeof value === 'number' && isNaN(value)) return;
         this.state[key] = value;
     },
 

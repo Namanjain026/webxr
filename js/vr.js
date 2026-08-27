@@ -272,9 +272,9 @@ window.VRCinemaVR = {
 
         if (!leftEye || !rightEye) return;
 
-        const leftScale = settings.leftMaskWidth || 1.0;
-        const rightScale = settings.rightMaskWidth || 1.0;
-        const maskSep = (settings.maskSeparation !== undefined) ? settings.maskSeparation : 1.0;
+        const leftScale = (settings && settings.leftMaskWidth !== undefined && !isNaN(settings.leftMaskWidth)) ? settings.leftMaskWidth : 1.0;
+        const rightScale = (settings && settings.rightMaskWidth !== undefined && !isNaN(settings.rightMaskWidth)) ? settings.rightMaskWidth : 1.0;
+        const maskSep = (settings && settings.maskSeparation !== undefined && !isNaN(settings.maskSeparation)) ? settings.maskSeparation : 1.0;
 
         const windowW = window.innerWidth || 1;
         const windowH = window.innerHeight || 1;

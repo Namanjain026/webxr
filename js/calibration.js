@@ -42,15 +42,17 @@ window.VRCinemaCalibration = {
                 // Live Update
                 input.addEventListener('input', (e) => {
                     const parsedVal = binding.parse(e.target.value);
-                    settings.set(binding.key, parsedVal);
-                    if (valDisplay) valDisplay.innerText = parsedVal;
+                    if (!isNaN(parsedVal)) {
+                        settings.set(binding.key, parsedVal);
+                        if (valDisplay) valDisplay.innerText = parsedVal;
 
-                    if (binding.key === 'gyroSensitivity' && window.VRCinemaGyro) {
-                        window.VRCinemaGyro.sensitivity = parsedVal;
+                        if (binding.key === 'gyroSensitivity' && window.VRCinemaGyro) {
+                            window.VRCinemaGyro.sensitivity = parsedVal;
+                        }
+
+                        // Keep sister sliders synced without interrupting the active input
+                        this.updateUIFromSettings();
                     }
-
-                    // Keep sister slider synced across HUD and modal
-                    this.updateUIFromSettings();
                 });
             }
         });
@@ -86,6 +88,7 @@ window.VRCinemaCalibration = {
 
     updateUIFromSettings: function () {
         const settings = window.VRCinemaSettings;
+        const activeEl = document.activeElement;
         const bindings = [
             { id: 'cal-left-mask', key: 'leftMaskWidth' },
             { id: 'cal-right-mask', key: 'rightMaskWidth' },
@@ -108,9 +111,16 @@ window.VRCinemaCalibration = {
             const input = document.getElementById(binding.id);
             const valDisplay = document.getElementById(`${binding.id}-val`);
             if (input) {
-                const val = settings.get(binding.key);
-                input.value = val;
-                if (valDisplay) valDisplay.innerText = val;
+                let val = settings.get(binding.key);
+                if (val === undefined || val === null || (typeof val === 'number' && isNaN(val))) {
+                    val = settings.defaults[binding.key] !== undefined ? settings.defaults[binding.key] : 1.0;
+                }
+                if (input !== activeEl) {
+                    input.value = val;
+                }
+                if (valDisplay) {
+                    valDisplay.innerText = val;
+                }
             }
         });
 
