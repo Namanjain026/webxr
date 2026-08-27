@@ -183,29 +183,29 @@ window.VRCinemaVR = {
         return tex;
     },
 
-    createCurvedScreenGeometry: function (width, height, radius = 6.0, segments = 48) {
-        const thetaLength = width / radius;
-        const thetaStart = (Math.PI * 1.5) - (thetaLength / 2);
+    createCurvedScreenGeometry: function (width, height, radius = 7.5, segmentsX = 40) {
+        const geo = new THREE.PlaneGeometry(width, height, segmentsX, 1);
+        const posAttribute = geo.attributes.position;
 
-        const geo = new THREE.CylinderGeometry(
-            radius,        // radiusTop
-            radius,        // radiusBottom
-            height,        // height
-            segments,      // radialSegments (smooth curve)
-            1,             // heightSegments
-            true,          // openEnded
-            thetaStart,    // thetaStart
-            thetaLength    // thetaLength
-        );
+        for (let i = 0; i < posAttribute.count; i++) {
+            const x = posAttribute.getX(i);
+            const angle = x / radius;
 
-        // Position geometry origin so apex is at z = 0, edges curve forward towards viewer (+Z)
-        geo.translate(0, 0, radius);
+            // Bend X and Z to form an IMAX concave curve
+            const newX = radius * Math.sin(angle);
+            const newZ = radius * (1 - Math.cos(angle)); // Edges curve forward towards camera (+Z)
+
+            posAttribute.setX(i, newX);
+            posAttribute.setZ(i, newZ);
+        }
+
+        geo.computeVertexNormals();
         return geo;
     },
 
     createCinemaScreens: function () {
-        // Curved IMAX Cinema Screen Geometry (7.11m wide x 4.0m high, 6.0m curve radius)
-        const curvedGeo = this.createCurvedScreenGeometry(7.11, 4.0, 6.0, 48);
+        // Curved IMAX Cinema Screen Geometry (7.11m wide x 4.0m high, 7.5m curve radius)
+        const curvedGeo = this.createCurvedScreenGeometry(7.11, 4.0, 7.5, 40);
 
         // Left Screen Material
         this.screenMaterialLeft = new THREE.MeshBasicMaterial({
@@ -223,14 +223,14 @@ window.VRCinemaVR = {
         this.screenMeshLeft = new THREE.Mesh(curvedGeo, this.screenMaterialLeft);
         this.screenMeshLeft.position.set(0, 0, -4.0);
         this.screenMeshLeft.layers.set(1);
-        this.cameraLeft.layers.set(1);
+        this.cameraLeft.layers.enable(1);
         this.scene.add(this.screenMeshLeft);
 
         // Right Eye Screen Mesh (Dedicated to Layer 2)
         this.screenMeshRight = new THREE.Mesh(curvedGeo.clone(), this.screenMaterialRight);
         this.screenMeshRight.position.set(0, 0, -4.0);
         this.screenMeshRight.layers.set(2);
-        this.cameraRight.layers.set(2);
+        this.cameraRight.layers.enable(2);
         this.scene.add(this.screenMeshRight);
     },
 
